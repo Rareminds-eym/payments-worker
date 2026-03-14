@@ -14,7 +14,9 @@ export interface Env {
 
   // API Keys for website authentication (stored as Cloudflare Secrets)
   SKILLPASSPORT_API_KEY_PROD: string;
-  SKILLPASSPORT_API_KEY_DEV: string;
+  SKILLPASSPORT_API_KEY_STAGING?: string;
+  SKILLPASSPORT_API_KEY_DEV?: string;
+  SKILLPASSPORT_API_KEY_LOCAL?: string;
   LEGACY_API_KEY?: string;
   SHARED_API_KEY?: string; // Deprecated fallback
 
@@ -26,7 +28,7 @@ export interface Env {
   // Service bindings
   EMAIL_SERVICE?: Fetcher;
 
-  ENVIRONMENT: 'development' | 'production';
+  ENVIRONMENT: 'local' | 'development' | 'staging' | 'production';
 
   // Future: KV for rate limiting
   RATE_LIMIT_KV?: KVNamespace;
@@ -36,7 +38,7 @@ export interface Env {
 export interface WebsiteConfig {
   id: string;
   name: string;
-  environment: 'development' | 'production';
+  environment: 'local' | 'development' | 'staging' | 'production';
 }
 
 // Request context (added by middleware)

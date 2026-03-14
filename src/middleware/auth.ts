@@ -18,21 +18,27 @@ export function authenticateRequest(request: Request, env: Env): WebsiteConfig |
     );
   }
 
-  // Check against environment-based API keys
-  if (apiKey === env.SKILLPASSPORT_API_KEY_PROD) {
+  if (env.SKILLPASSPORT_API_KEY_PROD && apiKey === env.SKILLPASSPORT_API_KEY_PROD) {
     return WEBSITE_METADATA['skillpassport-prod'];
   }
-  
-  if (apiKey === env.SKILLPASSPORT_API_KEY_DEV) {
+
+  if (env.SKILLPASSPORT_API_KEY_STAGING && apiKey === env.SKILLPASSPORT_API_KEY_STAGING) {
+    return WEBSITE_METADATA['skillpassport-staging'];
+  }
+
+  if (env.SKILLPASSPORT_API_KEY_DEV && apiKey === env.SKILLPASSPORT_API_KEY_DEV) {
     return WEBSITE_METADATA['skillpassport-dev'];
   }
-  
-  // Optional legacy key for backward compatibility
+
+  if (env.SKILLPASSPORT_API_KEY_LOCAL && apiKey === env.SKILLPASSPORT_API_KEY_LOCAL) {
+    return WEBSITE_METADATA['skillpassport-local'];
+  }
+
+  // Legacy fallback
   if (env.LEGACY_API_KEY && apiKey === env.LEGACY_API_KEY) {
     return WEBSITE_METADATA['legacy'];
   }
-  
-  // Deprecated: Fallback to old SHARED_API_KEY for backward compatibility
+
   if (env.SHARED_API_KEY && apiKey === env.SHARED_API_KEY) {
     return {
       id: 'legacy',

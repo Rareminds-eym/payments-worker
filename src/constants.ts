@@ -62,10 +62,20 @@ export const WEBSITE_METADATA = {
     name: 'Skill Passport',
     environment: 'development' as const,
   },
+  'skillpassport-staging': {
+    id: 'website-a',
+    name: 'Skill Passport',
+    environment: 'staging' as const,
+  },
+  'skillpassport-local': {
+    id: 'website-a',
+    name: 'Skill Passport',
+    environment: 'local' as const,
+  },
   'legacy': {
     id: 'legacy',
     name: 'Legacy Key',
-    environment: 'development' as const,
+    environment: 'local' as const,
   },
 } as const;
 

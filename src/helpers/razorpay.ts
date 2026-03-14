@@ -5,13 +5,17 @@
 import type { Env } from '../types';
 
 export function getRazorpayCredentials(env: Env): { keyId: string; keySecret: string } {
-  const isTest = env.RAZORPAY_MODE === 'test';
+  // RAZORPAY_MODE takes explicit precedence; falls back to ENVIRONMENT
+  const mode = env.RAZORPAY_MODE || (env.ENVIRONMENT === 'production' ? 'live' : 'test');
+  const isTest = mode !== 'live';
+
   const keyId = isTest
     ? (env.RAZORPAY_KEY_ID_TEST || env.RAZORPAY_KEY_ID)
     : env.RAZORPAY_KEY_ID;
   const keySecret = isTest
     ? (env.RAZORPAY_KEY_SECRET_TEST || env.RAZORPAY_KEY_SECRET)
     : env.RAZORPAY_KEY_SECRET;
+
   if (!keyId || !keySecret) throw new Error('Razorpay credentials not configured');
   return { keyId, keySecret };
 }

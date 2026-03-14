@@ -33,8 +33,10 @@ Copy the example below into a new `.dev.vars` file at the project root. This fil
 # .dev.vars
 
 # API keys used by Pages Functions to authenticate with this worker
-SKILLPASSPORT_API_KEY_PROD=
+SKILLPASSPORT_API_KEY_LOCAL=
 SKILLPASSPORT_API_KEY_DEV=
+SKILLPASSPORT_API_KEY_STAGING=
+SKILLPASSPORT_API_KEY_PROD=
 LEGACY_API_KEY=
 
 # Razorpay test keys (get these from your Razorpay dashboard)
@@ -43,7 +45,8 @@ RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
 
 # Environment
-ENVIRONMENT=development
+ENVIRONMENT=local
+RAZORPAY_MODE=test
 ```
 
 **3. Start the dev server**
@@ -60,13 +63,16 @@ The worker runs on `http://localhost:9003` by default (configured in `wrangler.t
 
 | Variable | Required | Description |
 |---|---|---|
-| `SKILLPASSPORT_API_KEY_PROD` | Yes | API key for production callers |
-| `SKILLPASSPORT_API_KEY_DEV` | Yes | API key for dev/staging callers |
+| `SKILLPASSPORT_API_KEY_LOCAL` | Local only | API key for local callers |
+| `SKILLPASSPORT_API_KEY_DEV` | Dev/Staging | API key for development callers |
+| `SKILLPASSPORT_API_KEY_STAGING` | Staging | API key for staging callers |
+| `SKILLPASSPORT_API_KEY_PROD` | Production | API key for production callers |
 | `LEGACY_API_KEY` | No | Backward-compat key for older integrations |
-| `RAZORPAY_KEY_ID` | Yes | Razorpay Key ID (test or live) |
+| `RAZORPAY_KEY_ID` | Yes | Razorpay Key ID (`rzp_test_*` or `rzp_live_*`) |
 | `RAZORPAY_KEY_SECRET` | Yes | Razorpay Key Secret |
 | `RAZORPAY_WEBHOOK_SECRET` | No | Required only if using `/verify-webhook` |
-| `ENVIRONMENT` | Yes | `development` or `production` |
+| `ENVIRONMENT` | Yes | `local`, `development`, `staging`, or `production` |
+| `RAZORPAY_MODE` | No | `test` or `live` — overrides ENVIRONMENT default |
 
 ---
 
@@ -88,34 +94,79 @@ All endpoints (except `/health`) require the `X-API-Key` header.
 ```bash
 curl -X POST http://localhost:9003/create-order \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: dev-key-skillpassport-12345" \
+  -H "X-API-Key: local-key-skillpassport-12345" \
   -d '{"amount": 99900, "currency": "INR", "receipt": "rcpt_001"}'
 ```
 
 ---
 
+## Running Per Environment
+
+### Local
+
+Uses `.dev.vars` automatically. Razorpay test keys, no deployment.
+
+```bash
+wrangler dev --port=9003
+```
+
+### Development
+
+```bash
+# First time — set secrets
+wrangler secret put RAZORPAY_KEY_ID --env development
+wrangler secret put RAZORPAY_KEY_SECRET --env development
+wrangler secret put RAZORPAY_WEBHOOK_SECRET --env development
+wrangler secret put SKILLPASSPORT_API_KEY_DEV --env development
+wrangler secret put SKILLPASSPORT_API_KEY_PROD --env development
+
+# Deploy
+wrangler deploy --env development
+```
+
+Deploys as `razorpay-api-development`. Uses `rzp_test_*` keys, `ENVIRONMENT=development`.
+
+### Staging
+
+```bash
+# First time — set secrets
+wrangler secret put RAZORPAY_KEY_ID --env staging
+wrangler secret put RAZORPAY_KEY_SECRET --env staging
+wrangler secret put RAZORPAY_WEBHOOK_SECRET --env staging
+wrangler secret put SKILLPASSPORT_API_KEY_STAGING --env staging
+wrangler secret put SKILLPASSPORT_API_KEY_PROD --env staging
+
+# Deploy
+wrangler deploy --env staging
+```
+
+Deploys as `razorpay-api-staging`. Uses `rzp_test_*` keys, `ENVIRONMENT=staging`.
+
+### Production
+
+```bash
+# First time — set secrets (use rzp_live_* keys here)
+wrangler secret put RAZORPAY_KEY_ID --env production
+wrangler secret put RAZORPAY_KEY_SECRET --env production
+wrangler secret put RAZORPAY_WEBHOOK_SECRET --env production
+wrangler secret put SKILLPASSPORT_API_KEY_PROD --env production
+
+# Deploy
+wrangler deploy --env production
+```
+
+Deploys as `razorpay-api-production`. Uses `rzp_live_*` keys, `RAZORPAY_MODE=live`, `ENVIRONMENT=production`.
+
+---
+
 ## Deployment
 
-**1. Set production secrets via Wrangler**
-
 ```bash
-wrangler secret put RAZORPAY_KEY_ID
-wrangler secret put RAZORPAY_KEY_SECRET
-wrangler secret put RAZORPAY_WEBHOOK_SECRET
-wrangler secret put SKILLPASSPORT_API_KEY_PROD
-wrangler secret put SKILLPASSPORT_API_KEY_DEV
-```
-
-**2. Deploy**
-
-```bash
-npm run deploy
-```
-
-To deploy to the test environment:
-
-```bash
-wrangler deploy --env test
+# Deploy to specific environment
+npm run deploy                        # production (default)
+wrangler deploy --env development
+wrangler deploy --env staging
+wrangler deploy --env production
 ```
 
 ---
@@ -124,8 +175,8 @@ wrangler deploy --env test
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start local dev server |
-| `npm run deploy` | Deploy to Cloudflare |
+| `npm run dev` | Start local dev server on port 9003 |
+| `npm run deploy` | Deploy to Cloudflare (production) |
 | `npm run type-check` | Run TypeScript type checking |
 | `npm run lint` | Lint source files |
 
@@ -137,3 +188,46 @@ wrangler deploy --env test
 - The `X-API-Key` is only held server-side (Pages Functions / Worker secrets), never in the browser
 - Razorpay HMAC signatures are always verified before any order is trusted
 - See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full security model
+
+---
+
+## Project Structure
+
+```
+src/
+├── index.ts              # Main entry point
+├── types.ts              # TypeScript types
+├── constants.ts          # Configuration constants
+├── middleware/
+│   ├── auth.ts          # API key authentication
+│   ├── rateLimit.ts     # Rate limiting
+│   └── logger.ts        # Structured logging
+├── routes/
+│   ├── health.ts        # Health check
+│   ├── orders.ts        # Order creation
+│   └── payments.ts      # Payment operations
+├── helpers/
+│   ├── razorpay.ts      # Razorpay credential helpers
+│   └── supabase.ts      # Supabase client helpers
+└── utils/
+    ├── response.ts      # Response helpers
+    └── fetch.ts         # Fetch with timeout/retry
+```
+
+---
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| `UNAUTHORIZED` | Missing or invalid API key |
+| `INVALID_INPUT` | Invalid request parameters |
+| `RATE_LIMIT_EXCEEDED` | Too many requests |
+| `RAZORPAY_API_ERROR` | Razorpay API error |
+| `INTERNAL_ERROR` | Internal server error |
+| `NOT_FOUND` | Endpoint not found |
+| `TIMEOUT` | Request timeout |
+
+---
+
+**Version:** 2.0.0

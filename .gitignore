@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Wrangler build output & local state
+.wrangler/
+dist/
+
+# Local environment secrets — NEVER commit these
+.dev.vars
+.env
+.env.*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

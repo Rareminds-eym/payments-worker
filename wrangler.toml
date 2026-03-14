@@ -1,0 +1,17 @@
+name = "razorpay-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Production (default deployment)
+# IMPORTANT: Secrets are set via CLI: wrangler secret put <SECRET_NAME>
+# Required secrets: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, SHARED_API_KEY
+[vars]
+ENVIRONMENT = "production"
+
+# Test environment (for testing deployments)
+[env.test]
+vars = { ENVIRONMENT = "development" }
+
+# Scheduled cleanup (runs every hour)
+[triggers]
+crons = ["0 * * * *"]

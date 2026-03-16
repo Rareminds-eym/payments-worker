@@ -49,36 +49,6 @@ export const LOG_LEVELS = {
   DEBUG: 'debug',
 } as const;
 
-// Website Configuration Metadata
-// API keys are stored as Cloudflare Secrets, not in source code
-export const WEBSITE_METADATA = {
-  'skillpassport-prod': {
-    id: 'website-a',
-    name: 'Skill Passport',
-    environment: 'production' as const,
-  },
-  'skillpassport-dev': {
-    id: 'website-a',
-    name: 'Skill Passport',
-    environment: 'development' as const,
-  },
-  'skillpassport-staging': {
-    id: 'website-a',
-    name: 'Skill Passport',
-    environment: 'staging' as const,
-  },
-  'skillpassport-local': {
-    id: 'website-a',
-    name: 'Skill Passport',
-    environment: 'local' as const,
-  },
-  'legacy': {
-    id: 'legacy',
-    name: 'Legacy Key',
-    environment: 'local' as const,
-  },
-} as const;
-
 // Error Codes
 export const ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED',

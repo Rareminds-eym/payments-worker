@@ -7,23 +7,9 @@ export interface Env {
   RAZORPAY_KEY_ID: string;
   RAZORPAY_KEY_SECRET: string;
   RAZORPAY_WEBHOOK_SECRET?: string;
-  // Test mode toggle: 'test' or 'live'
-  RAZORPAY_MODE?: string;
-  RAZORPAY_KEY_ID_TEST?: string;
-  RAZORPAY_KEY_SECRET_TEST?: string;
 
-  // API Keys for website authentication (stored as Cloudflare Secrets)
-  SKILLPASSPORT_API_KEY_PROD: string;
-  SKILLPASSPORT_API_KEY_STAGING?: string;
-  SKILLPASSPORT_API_KEY_DEV?: string;
-  SKILLPASSPORT_API_KEY_LOCAL?: string;
-  LEGACY_API_KEY?: string;
-  SHARED_API_KEY?: string; // Deprecated fallback
-
-  // Supabase
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-  SUPABASE_ANON_KEY: string;
+  // Service JWT secret — shared between Pages Functions and this worker
+  RAZORPAY_SERVICE_SECRET?: string;
 
   // Service bindings
   EMAIL_SERVICE?: Fetcher;

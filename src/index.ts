@@ -48,18 +48,21 @@ export default {
     }
 
     // Authenticate request
-    const authResult = authenticateRequest(request, env);
+    const authResult = await authenticateRequest(request, env);
     if (authResult instanceof Response) {
-      return authResult; // Auth failed, return error response
+      return authResult;
     }
 
-    const website = authResult;
-    const logger = createLogger(requestId, website.id);
+    // Derive a stable caller ID for rate limiting and logging
+    const callerId = authResult.serviceId;
+
+    const logger = createLogger(requestId, callerId);
 
     logger.info('Request received', {
       method: request.method,
       path,
-      website: website.name,
+      caller: callerId,
+      authType: authResult.type,
     });
 
     try {
@@ -67,41 +70,25 @@ export default {
       let response: Response;
 
       if (path === '/create-order' && request.method === 'POST') {
-        // Rate limit check
-        const rateLimitResult = checkRateLimit(website.id, 'create-order');
-        if (rateLimitResult instanceof Response) {
-          return rateLimitResult;
-        }
-
+        const rateLimitResult = checkRateLimit(callerId, 'create-order');
+        if (rateLimitResult instanceof Response) return rateLimitResult;
         response = await handleCreateOrder(request, env, logger, requestId);
       } else if (path === '/verify-payment' && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(website.id, 'verify-payment');
-        if (rateLimitResult instanceof Response) {
-          return rateLimitResult;
-        }
-
+        const rateLimitResult = checkRateLimit(callerId, 'verify-payment');
+        if (rateLimitResult instanceof Response) return rateLimitResult;
         response = await handleVerifyPayment(request, env, logger, requestId);
       } else if (path === '/verify-webhook' && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(website.id, 'verify-webhook');
-        if (rateLimitResult instanceof Response) {
-          return rateLimitResult;
-        }
-
+        const rateLimitResult = checkRateLimit(callerId, 'verify-webhook');
+        if (rateLimitResult instanceof Response) return rateLimitResult;
         response = await handleVerifyWebhook(request, env, logger, requestId);
       } else if (path.startsWith('/payment/') && request.method === 'GET') {
-        const rateLimitResult = checkRateLimit(website.id, 'get-payment');
-        if (rateLimitResult instanceof Response) {
-          return rateLimitResult;
-        }
-
+        const rateLimitResult = checkRateLimit(callerId, 'get-payment');
+        if (rateLimitResult instanceof Response) return rateLimitResult;
         const paymentId = path.split('/')[2];
         response = await handleGetPayment(request, env, logger, requestId, paymentId);
       } else if (path.startsWith('/subscription/') && path.endsWith('/cancel') && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(website.id, 'cancel-subscription');
-        if (rateLimitResult instanceof Response) {
-          return rateLimitResult;
-        }
-
+        const rateLimitResult = checkRateLimit(callerId, 'cancel-subscription');
+        if (rateLimitResult instanceof Response) return rateLimitResult;
         const subscriptionId = path.split('/')[2];
         response = await handleCancelSubscription(request, env, logger, requestId, subscriptionId);
       } else {

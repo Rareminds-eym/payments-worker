@@ -2,49 +2,44 @@ name = "razorpay-api"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
-# ─── Local ────────────────────────────────────────────────────────────────────
-# wrangler dev --port=9003
-# Uses .dev.vars automatically (never deployed)
+# ============================================================================
+# OBSERVABILITY
+# ============================================================================
+
+[observability]
+enabled = true
+
+# ============================================================================
+# VARIABLES
+# ============================================================================
+# Non-secret vars only. All secrets are set via: npm run secrets:setup
+# RAZORPAY_MODE is controlled by which key pair you vault (test vs live keys)
+
+# Default (production) — used when deploying with: npm run deploy
 [vars]
-ENVIRONMENT = "local"
-RAZORPAY_MODE = "test"
+ENVIRONMENT = "production"
+
+# Local — used automatically with: npm run dev (reads .dev.vars)
+# [vars] is overridden by .dev.vars locally, no deploy for this
+# ENVIRONMENT = "local"
+
+# Development — wrangler deploy --env development
+[env.development.vars]
+ENVIRONMENT = "development"
+
+# Staging — wrangler deploy --env staging
+[env.staging.vars]
+ENVIRONMENT = "staging"
+
+# ============================================================================
+# TRIGGERS
+# ============================================================================
 
 [triggers]
 crons = ["0 * * * *"]
 
-# ─── Development ──────────────────────────────────────────────────────────────
-# wrangler deploy --env development
-# wrangler dev --env development --port=9003
-[env.development]
-name = "razorpay-api-development"
-
-[env.development.vars]
-ENVIRONMENT = "development"
-RAZORPAY_MODE = "test"
-
 [env.development.triggers]
 crons = ["0 * * * *"]
 
-# ─── Staging ──────────────────────────────────────────────────────────────────
-# wrangler deploy --env staging
-[env.staging]
-name = "razorpay-api-staging"
-
-[env.staging.vars]
-ENVIRONMENT = "staging"
-RAZORPAY_MODE = "test"
-
 [env.staging.triggers]
-crons = ["0 * * * *"]
-
-# ─── Production ───────────────────────────────────────────────────────────────
-# wrangler deploy --env production
-[env.production]
-name = "razorpay-api-production"
-
-[env.production.vars]
-ENVIRONMENT = "production"
-RAZORPAY_MODE = "live"
-
-[env.production.triggers]
 crons = ["0 * * * *"]

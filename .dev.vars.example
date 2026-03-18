@@ -1,16 +1,19 @@
-# Copy to .dev.vars for local development
-# For staging/production, set these via: wrangler secret put <KEY> --env <staging|production>
+# Local secrets for wrangler dev — copy this to .dev.vars and fill in your values.
+# .dev.vars is gitignored and never deployed.
 
-ENVIRONMENT=development
-RAZORPAY_MODE=test
-
-# Razorpay keys
-# local/staging → rzp_test_* keys
-# production    → rzp_live_* keys
-RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxx
-RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxx
-RAZORPAY_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxx
-
-# API keys for Pages Functions → Worker auth
-SKILLPASSPORT_API_KEY_DEV=dev-key-skillpassport-xxxxx
+# API keys used by Pages Functions to authenticate with this worker
 SKILLPASSPORT_API_KEY_PROD=prod-key-skillpassport-xxxxx
+SKILLPASSPORT_API_KEY_DEV=dev-key-skillpassport-xxxxx
+
+# Razorpay keys — use test keys (rzp_test_...) for local dev
+RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXXXXXX
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+
+# Supabase
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Environment (overrides wrangler.toml default of "production" during local dev)
+ENVIRONMENT=development

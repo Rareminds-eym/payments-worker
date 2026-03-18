@@ -7,6 +7,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:development": "wrangler deploy --env development",
+    "deploy:staging": "wrangler deploy --env staging",
+    "tail": "wrangler tail",
+    "secrets:list": "wrangler secret list",
+    "test": "npx tsx --tsconfig tsconfig.scripts.json scripts/test-payment.ts",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts"
   },
@@ -20,6 +25,7 @@
   "license": "MIT",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231218.0",
+    "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",

@@ -17,7 +17,7 @@ Browser → Pages Functions (/api/payments/*) → razorpay-api Worker → Razorp
 
 ---
 
-## Local Setup
+## Local Development
 
 **1. Install dependencies**
 
@@ -27,27 +27,11 @@ npm install
 
 **2. Create your local secrets file**
 
-Copy the example below into a new `.dev.vars` file at the project root. This file is gitignored — never commit it.
-
-```ini
-# .dev.vars
-
-# API keys used by Pages Functions to authenticate with this worker
-SKILLPASSPORT_API_KEY_LOCAL=
-SKILLPASSPORT_API_KEY_DEV=
-SKILLPASSPORT_API_KEY_STAGING=
-SKILLPASSPORT_API_KEY_PROD=
-LEGACY_API_KEY=
-
-# Razorpay test keys (get these from your Razorpay dashboard)
-RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXXXXXX
-RAZORPAY_KEY_SECRET=your_razorpay_key_secret
-RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
-
-# Environment
-ENVIRONMENT=local
-RAZORPAY_MODE=test
+```bash
+cp .dev.vars.example .dev.vars
 ```
+
+Edit `.dev.vars` with your local credentials. This file is gitignored — never commit it.
 
 **3. Start the dev server**
 
@@ -55,7 +39,40 @@ RAZORPAY_MODE=test
 npm run dev
 ```
 
-The worker runs on `http://localhost:9003` by default (configured in `wrangler.toml`).
+The worker runs on `http://localhost:9003` by default.
+
+---
+
+## Deployment
+
+This is a single unified worker instance. All environments share the same deployment — `ENVIRONMENT` is a runtime var, not a separate worker.
+
+**1. Configure secrets (first time only)**
+
+Set them individually using Wrangler:
+
+```bash
+npx wrangler secret put SKILLPASSPORT_API_KEY_PROD
+npx wrangler secret put SKILLPASSPORT_API_KEY_DEV
+npx wrangler secret put RAZORPAY_KEY_ID
+npx wrangler secret put RAZORPAY_KEY_SECRET
+npx wrangler secret put RAZORPAY_WEBHOOK_SECRET
+npx wrangler secret put SUPABASE_URL
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put SUPABASE_ANON_KEY
+```
+
+Verify what's vaulted:
+
+```bash
+npm run secrets:list
+```
+
+**2. Deploy**
+
+```bash
+npm run deploy
+```
 
 ---
 
@@ -63,16 +80,15 @@ The worker runs on `http://localhost:9003` by default (configured in `wrangler.t
 
 | Variable | Required | Description |
 |---|---|---|
-| `SKILLPASSPORT_API_KEY_LOCAL` | Local only | API key for local callers |
-| `SKILLPASSPORT_API_KEY_DEV` | Dev/Staging | API key for development callers |
-| `SKILLPASSPORT_API_KEY_STAGING` | Staging | API key for staging callers |
-| `SKILLPASSPORT_API_KEY_PROD` | Production | API key for production callers |
-| `LEGACY_API_KEY` | No | Backward-compat key for older integrations |
+| `SKILLPASSPORT_API_KEY_PROD` | Yes | API key for production callers |
+| `SKILLPASSPORT_API_KEY_DEV` | Yes | API key for dev/staging callers |
 | `RAZORPAY_KEY_ID` | Yes | Razorpay Key ID (`rzp_test_*` or `rzp_live_*`) |
 | `RAZORPAY_KEY_SECRET` | Yes | Razorpay Key Secret |
 | `RAZORPAY_WEBHOOK_SECRET` | No | Required only if using `/verify-webhook` |
-| `ENVIRONMENT` | Yes | `local`, `development`, `staging`, or `production` |
-| `RAZORPAY_MODE` | No | `test` or `live` — overrides ENVIRONMENT default |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `ENVIRONMENT` | Yes | Set in `wrangler.toml` as `production`; overridden to `development` via `.dev.vars` locally |
 
 ---
 
@@ -94,79 +110,8 @@ All endpoints (except `/health`) require the `X-API-Key` header.
 ```bash
 curl -X POST http://localhost:9003/create-order \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: local-key-skillpassport-12345" \
+  -H "X-API-Key: dev-key-skillpassport-xxxxx" \
   -d '{"amount": 99900, "currency": "INR", "receipt": "rcpt_001"}'
-```
-
----
-
-## Running Per Environment
-
-### Local
-
-Uses `.dev.vars` automatically. Razorpay test keys, no deployment.
-
-```bash
-wrangler dev --port=9003
-```
-
-### Development
-
-```bash
-# First time — set secrets
-wrangler secret put RAZORPAY_KEY_ID --env development
-wrangler secret put RAZORPAY_KEY_SECRET --env development
-wrangler secret put RAZORPAY_WEBHOOK_SECRET --env development
-wrangler secret put SKILLPASSPORT_API_KEY_DEV --env development
-wrangler secret put SKILLPASSPORT_API_KEY_PROD --env development
-
-# Deploy
-wrangler deploy --env development
-```
-
-Deploys as `razorpay-api-development`. Uses `rzp_test_*` keys, `ENVIRONMENT=development`.
-
-### Staging
-
-```bash
-# First time — set secrets
-wrangler secret put RAZORPAY_KEY_ID --env staging
-wrangler secret put RAZORPAY_KEY_SECRET --env staging
-wrangler secret put RAZORPAY_WEBHOOK_SECRET --env staging
-wrangler secret put SKILLPASSPORT_API_KEY_STAGING --env staging
-wrangler secret put SKILLPASSPORT_API_KEY_PROD --env staging
-
-# Deploy
-wrangler deploy --env staging
-```
-
-Deploys as `razorpay-api-staging`. Uses `rzp_test_*` keys, `ENVIRONMENT=staging`.
-
-### Production
-
-```bash
-# First time — set secrets (use rzp_live_* keys here)
-wrangler secret put RAZORPAY_KEY_ID --env production
-wrangler secret put RAZORPAY_KEY_SECRET --env production
-wrangler secret put RAZORPAY_WEBHOOK_SECRET --env production
-wrangler secret put SKILLPASSPORT_API_KEY_PROD --env production
-
-# Deploy
-wrangler deploy --env production
-```
-
-Deploys as `razorpay-api-production`. Uses `rzp_live_*` keys, `RAZORPAY_MODE=live`, `ENVIRONMENT=production`.
-
----
-
-## Deployment
-
-```bash
-# Deploy to specific environment
-npm run deploy                        # production (default)
-wrangler deploy --env development
-wrangler deploy --env staging
-wrangler deploy --env production
 ```
 
 ---
@@ -175,9 +120,11 @@ wrangler deploy --env production
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start local dev server on port 9003 |
-| `npm run deploy` | Deploy to Cloudflare (production) |
-| `npm run type-check` | Run TypeScript type checking |
+| `npm run dev` | Start local dev server |
+| `npm run deploy` | Deploy to Cloudflare |
+| `npm run tail` | Stream live logs from the deployed worker |
+| `npm run secrets:list` | List currently vaulted secrets |
+| `npm run type-check` | TypeScript type checking |
 | `npm run lint` | Lint source files |
 
 ---
@@ -188,46 +135,3 @@ wrangler deploy --env production
 - The `X-API-Key` is only held server-side (Pages Functions / Worker secrets), never in the browser
 - Razorpay HMAC signatures are always verified before any order is trusted
 - See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full security model
-
----
-
-## Project Structure
-
-```
-src/
-├── index.ts              # Main entry point
-├── types.ts              # TypeScript types
-├── constants.ts          # Configuration constants
-├── middleware/
-│   ├── auth.ts          # API key authentication
-│   ├── rateLimit.ts     # Rate limiting
-│   └── logger.ts        # Structured logging
-├── routes/
-│   ├── health.ts        # Health check
-│   ├── orders.ts        # Order creation
-│   └── payments.ts      # Payment operations
-├── helpers/
-│   ├── razorpay.ts      # Razorpay credential helpers
-│   └── supabase.ts      # Supabase client helpers
-└── utils/
-    ├── response.ts      # Response helpers
-    └── fetch.ts         # Fetch with timeout/retry
-```
-
----
-
-## Error Codes
-
-| Code | Description |
-|------|-------------|
-| `UNAUTHORIZED` | Missing or invalid API key |
-| `INVALID_INPUT` | Invalid request parameters |
-| `RATE_LIMIT_EXCEEDED` | Too many requests |
-| `RAZORPAY_API_ERROR` | Razorpay API error |
-| `INTERNAL_ERROR` | Internal server error |
-| `NOT_FOUND` | Endpoint not found |
-| `TIMEOUT` | Request timeout |
-
----
-
-**Version:** 2.0.0

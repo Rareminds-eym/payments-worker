@@ -1,6 +1,25 @@
 name = "razorpay-api"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-03-20"
+
+# ============================================================================
+# LOCAL DEV
+# ============================================================================
+# wrangler dev reads .dev.vars automatically for secrets when --env-file is set.
+# Port is also declared here as a fallback.
+
+[dev]
+port = 9003
+
+# ============================================================================
+# BINDINGS
+# ============================================================================
+# Run `npm run kv:create` once to provision, then paste the returned id below.
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "REPLACE_WITH_KV_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
 
 # ============================================================================
 # OBSERVABILITY
@@ -12,16 +31,17 @@ enabled = true
 # ============================================================================
 # VARIABLES
 # ============================================================================
-# Non-secret vars only. All secrets are set via: npm run secrets:setup
-# RAZORPAY_MODE is controlled by which key pair you vault (test vs live keys)
+# Non-secret vars only. All secrets are set via: wrangler secret put
 
 # Default (production) — used when deploying with: npm run deploy
 [vars]
 ENVIRONMENT = "production"
 
-# Local — used automatically with: npm run dev (reads .dev.vars)
-# [vars] is overridden by .dev.vars locally, no deploy for this
-# ENVIRONMENT = "local"
+# ─── LOCAL DEV ONLY ──────────────────────────────────────────────────────────
+# These vars are overridden by .dev.vars when wrangler dev loads it.
+# If wrangler fails to load .dev.vars, these placeholders prevent silent failures.
+# Real secrets for local dev go in .dev.vars (gitignored).
+# NEVER put real production secrets here.
 
 # Development — wrangler deploy --env development
 [env.development.vars]
@@ -32,14 +52,5 @@ ENVIRONMENT = "development"
 ENVIRONMENT = "staging"
 
 # ============================================================================
-# TRIGGERS
+# TRIGGERS — removed (cron cleanup was a no-op with per-isolate in-memory store)
 # ============================================================================
-
-[triggers]
-crons = ["0 * * * *"]
-
-[env.development.triggers]
-crons = ["0 * * * *"]
-
-[env.staging.triggers]
-crons = ["0 * * * *"]

@@ -7,11 +7,11 @@ import { LOG_LEVELS } from '../constants';
 
 class Logger {
   private requestId?: string;
-  private website?: string;
+  private callerId?: string;
 
-  constructor(requestId?: string, website?: string) {
+  constructor(requestId?: string, callerId?: string) {
     this.requestId = requestId;
-    this.website = website;
+    this.callerId = callerId;
   }
 
   private log(level: LogLevel, message: string, meta?: Record<string, unknown>, error?: Error): void {
@@ -20,7 +20,7 @@ class Logger {
       message,
       timestamp: new Date().toISOString(),
       ...(this.requestId && { requestId: this.requestId }),
-      ...(this.website && { website: this.website }),
+      ...(this.callerId && { callerId: this.callerId }),
       ...(error && {
         error: {
           message: error.message,
@@ -45,14 +45,10 @@ class Logger {
   info(message: string, meta?: Record<string, unknown>): void {
     this.log(LOG_LEVELS.INFO, message, meta);
   }
-
-  debug(message: string, meta?: Record<string, unknown>): void {
-    this.log(LOG_LEVELS.DEBUG, message, meta);
-  }
 }
 
-export function createLogger(requestId?: string, website?: string): Logger {
-  return new Logger(requestId, website);
+export function createLogger(requestId?: string, callerId?: string): Logger {
+  return new Logger(requestId, callerId);
 }
 
 export type { Logger };

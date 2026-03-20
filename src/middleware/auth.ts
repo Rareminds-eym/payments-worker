@@ -6,24 +6,24 @@
 
 import * as jose from 'jose';
 import type { Env } from '../types';
-import { ERROR_CODES } from '../constants';
+import { ERROR_CODES, SERVICE_ID } from '../constants';
 import { errorResponse } from '../utils/response';
 
 export interface AuthResult {
-  type: 'jwt';
   serviceId: string;
   userJwtHash?: string;
-  environment: string;
 }
 
 export async function authenticateRequest(request: Request, env: Env): Promise<AuthResult | Response> {
   if (!env.RAZORPAY_SERVICE_SECRET) {
-    return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Worker misconfigured', 'RAZORPAY_SERVICE_SECRET is not set', 500);
+    return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Worker misconfigured',
+      'RAZORPAY_SERVICE_SECRET is not set', 500);
   }
 
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Missing authorization', 'Authorization: Bearer <service-jwt> is required', 401);
+    return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Missing authorization',
+      'Authorization: Bearer <service-jwt> is required', 401);
   }
 
   const token = authHeader.slice(7);
@@ -32,15 +32,13 @@ export async function authenticateRequest(request: Request, env: Env): Promise<A
     const secret = new TextEncoder().encode(env.RAZORPAY_SERVICE_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
 
-    if (payload.service_id !== 'functions-payment-service') {
+    if (payload.service_id !== SERVICE_ID) {
       return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Invalid service JWT', 'Unrecognized service_id', 401);
     }
 
     return {
-      type: 'jwt',
       serviceId: payload.service_id as string,
       userJwtHash: payload.user_jwt_hash as string | undefined,
-      environment: env.ENVIRONMENT,
     };
   } catch {
     return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Invalid service JWT', 'JWT verification failed', 401);

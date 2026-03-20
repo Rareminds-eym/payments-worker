@@ -12,7 +12,7 @@
 import { SignJWT } from 'jose';
 import { SERVICE_ID } from '../src/constants.ts';
 
-const API_URL = process.env.API_URL || ' http://127.0.0.1:9003';
+const API_URL = process.env.API_URL || 'http://127.0.0.1:9003';
 const SERVICE_SECRET = process.env.RAZORPAY_SERVICE_SECRET || 'dev-service-secret-change-me';
 
 async function getServiceJwt(): Promise<string> {

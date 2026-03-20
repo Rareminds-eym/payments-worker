@@ -234,7 +234,7 @@ export async function handleCancelSubscription(
   const razorpayAuth = btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
 
   try {
-    // No retries — double cancel is an error, not a duplicate charge
+    // Set retries to 0 — subscription cancellation must not be retried on failure
     const response = await fetchWithRetry(
       `${RAZORPAY_API_BASE_URL}/subscriptions/${subscriptionId}/cancel`,
       {

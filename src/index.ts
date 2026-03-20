@@ -18,13 +18,12 @@ import {
 } from './routes/payments';
 
 async function attachRateLimitHeaders(response: Response, rl: RateLimitInfo): Promise<Response> {
-  // Clone the response and pass its body stream directly — avoids await text() deserialization
-  const cloned = response.clone();
-  const headers = new Headers(cloned.headers);
+  // Pass response.body directly — no clone needed since we're not reading the body
+  const headers = new Headers(response.headers);
   headers.set('X-RateLimit-Limit', rl.limit.toString());
   headers.set('X-RateLimit-Remaining', rl.remaining.toString());
   headers.set('X-RateLimit-Reset', new Date(rl.resetAt).toISOString());
-  return new Response(cloned.body, { status: cloned.status, headers });
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 export default {

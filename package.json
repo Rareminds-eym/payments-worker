@@ -5,13 +5,15 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 9003 --env-file .dev.vars",
     "deploy": "wrangler deploy",
     "deploy:development": "wrangler deploy --env development",
     "deploy:staging": "wrangler deploy --env staging",
     "tail": "wrangler tail",
     "secrets:list": "wrangler secret list",
-    "test": "npx tsx --tsconfig tsconfig.scripts.json scripts/test-payment.ts",
+    "secrets:setup": "bash scripts/setup-secrets.sh",
+    "kv:create": "wrangler kv namespace create RATE_LIMIT_KV",
+    "test": "npx dotenv -e .dev.vars -- npx tsx --tsconfig tsconfig.scripts.json scripts/test-payment.ts",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts"
   },
@@ -26,14 +28,14 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231218.0",
     "@types/node": "^25.5.0",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "^9.39.4",
     "typescript": "^5.3.0",
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.75.0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.1",
     "jose": "^6.2.1"
   }
 }

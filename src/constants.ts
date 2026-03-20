@@ -6,14 +6,21 @@
 export const API_VERSION = '2.0.0';
 export const SERVICE_NAME = 'razorpay-api';
 
+// Auth — shared between auth middleware and any JWT-issuing service
+export const SERVICE_ID = 'functions-payment-service';
+
 // Razorpay API
 export const RAZORPAY_API_BASE_URL = 'https://api.razorpay.com/v1';
 
 // Validation Limits
 export const MIN_AMOUNT = 100; // ₹1 in paise
-export const MAX_AMOUNT = 10000000; // ₹1 lakh in paise
+// ₹1 lakh cap — business rule for this platform. Razorpay supports up to ₹5 crore.
+// Increase this limit if high-value transactions are required.
+export const MAX_AMOUNT = 10000000;
 export const MAX_RECEIPT_LENGTH = 40;
-export const MAX_NOTES_SIZE = 15; // Max 15 key-value pairs
+export const MAX_NOTES_SIZE = 15;       // Max 15 key-value pairs (Razorpay limit)
+export const MAX_NOTE_KEY_LENGTH = 40;  // Razorpay key length limit
+export const MAX_NOTE_VALUE_LENGTH = 256; // Razorpay value length limit
 
 // Rate Limiting (per API key)
 export const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
@@ -30,23 +37,29 @@ export const RAZORPAY_API_TIMEOUT_MS = 10000; // 10 seconds
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15000; // 15 seconds
 
 // CORS Configuration
-export const ALLOWED_ORIGINS = [
-  'https://skillpassport.com',
-  'https://www.skillpassport.com',
+export const ALLOWED_ORIGINS_PROD = [
+  'https://skillpassport.rareminds.in',
+  'https://www.skillpassport.rareminds.in',
+];
+
+export const ALLOWED_ORIGINS_DEV = [
+  ...ALLOWED_ORIGINS_PROD,
   'http://localhost:8788',
   'http://localhost:5173',
   'http://127.0.0.1:8788',
   'http://127.0.0.1:5173',
 ];
 
-export const CORS_MAX_AGE = 86400; // 24 hours
+// Use ALLOWED_ORIGINS_DEV locally; response.ts picks the right list via env
+
+// 1 hour — shorter than 24h to avoid stale CORS config being cached during incidents
+export const CORS_MAX_AGE = 3600;
 
 // Logging
 export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
   INFO: 'info',
-  DEBUG: 'debug',
 } as const;
 
 // Error Codes
@@ -57,5 +70,6 @@ export const ERROR_CODES = {
   RAZORPAY_API_ERROR: 'RAZORPAY_API_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   NOT_FOUND: 'NOT_FOUND',
+  METHOD_NOT_ALLOWED: 'METHOD_NOT_ALLOWED',
   TIMEOUT: 'TIMEOUT',
 } as const;

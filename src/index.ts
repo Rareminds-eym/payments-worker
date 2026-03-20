@@ -1,24 +1,13 @@
 /**
  * Cloudflare Worker: Razorpay API v2.0
- * Shared payment processing for multiple websites
- * 
- * Features:
- * - TypeScript with full type safety
- * - Per-website API key authentication
- * - Rate limiting per endpoint
- * - Structured logging with request IDs
- * - Retry logic with exponential backoff
- * - Request timeouts
- * - CORS with origin validation
- * - Comprehensive error handling
  */
 
-import type { Env } from './types';
+import type { Env, RateLimitInfo } from './types';
 import { ERROR_CODES } from './constants';
 import { corsPreflightResponse, errorResponse } from './utils/response';
 import { createLogger } from './middleware/logger';
 import { authenticateRequest } from './middleware/auth';
-import { checkRateLimit, cleanupRateLimitStore } from './middleware/rateLimit';
+import { checkRateLimit } from './middleware/rateLimit';
 import { handleHealthCheck } from './routes/health';
 import { handleCreateOrder } from './routes/orders';
 import {
@@ -28,100 +17,119 @@ import {
   handleCancelSubscription,
 } from './routes/payments';
 
+async function attachRateLimitHeaders(response: Response, rl: RateLimitInfo): Promise<Response> {
+  // Clone the response and pass its body stream directly — avoids await text() deserialization
+  const cloned = response.clone();
+  const headers = new Headers(cloned.headers);
+  headers.set('X-RateLimit-Limit', rl.limit.toString());
+  headers.set('X-RateLimit-Remaining', rl.remaining.toString());
+  headers.set('X-RateLimit-Reset', new Date(rl.resetAt).toISOString());
+  return new Response(cloned.body, { status: cloned.status, headers });
+}
+
 export default {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
 
-    // Handle CORS preflight
     if (request.method === 'OPTIONS') {
-      return corsPreflightResponse(request);
+      return corsPreflightResponse(request, env);
     }
 
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Health check (no auth required)
+    // Health check — no auth required
     if (path === '/health') {
       const logger = createLogger(requestId);
       return await handleHealthCheck(request, env, logger);
     }
 
-    // Authenticate request
+    // Authenticate
     const authResult = await authenticateRequest(request, env);
     if (authResult instanceof Response) {
       return authResult;
     }
 
-    // Derive a stable caller ID for rate limiting and logging
     const callerId = authResult.serviceId;
-
     const logger = createLogger(requestId, callerId);
 
-    logger.info('Request received', {
-      method: request.method,
-      path,
-      caller: callerId,
-      authType: authResult.type,
-    });
+    // Warn if KV is not bound in non-local environments — rate limiting falls back to in-memory
+    if (env.ENVIRONMENT !== 'local' && !env.RATE_LIMIT_KV) {
+      logger.warn('RATE_LIMIT_KV not bound — rate limiting is in-memory only (not distributed)');
+    }
+
+    logger.info('Request received', { method: request.method, path, caller: callerId });
 
     try {
-      // Route to appropriate handler
       let response: Response;
 
-      if (path === '/create-order' && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(callerId, 'create-order');
-        if (rateLimitResult instanceof Response) return rateLimitResult;
+      if (path === '/create-order') {
+        if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
+        const rl = await checkRateLimit(callerId, 'create-order', env);
+        if (rl instanceof Response) return rl;
         response = await handleCreateOrder(request, env, logger, requestId);
-      } else if (path === '/verify-payment' && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(callerId, 'verify-payment');
-        if (rateLimitResult instanceof Response) return rateLimitResult;
+        response = await attachRateLimitHeaders(response, rl);
+
+      } else if (path === '/verify-payment') {
+        if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
+        const rl = await checkRateLimit(callerId, 'verify-payment', env);
+        if (rl instanceof Response) return rl;
         response = await handleVerifyPayment(request, env, logger, requestId);
-      } else if (path === '/verify-webhook' && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(callerId, 'verify-webhook');
-        if (rateLimitResult instanceof Response) return rateLimitResult;
+        response = await attachRateLimitHeaders(response, rl);
+
+      } else if (path === '/verify-webhook') {
+        if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
+        const rl = await checkRateLimit(callerId, 'verify-webhook', env);
+        if (rl instanceof Response) return rl;
         response = await handleVerifyWebhook(request, env, logger, requestId);
-      } else if (path.startsWith('/payment/') && request.method === 'GET') {
-        const rateLimitResult = checkRateLimit(callerId, 'get-payment');
-        if (rateLimitResult instanceof Response) return rateLimitResult;
-        const paymentId = path.split('/')[2];
+        response = await attachRateLimitHeaders(response, rl);
+
+      } else if (path.startsWith('/payment/')) {
+        if (request.method !== 'GET') return methodNotAllowed(requestId, request, env);
+        const rl = await checkRateLimit(callerId, 'get-payment', env);
+        if (rl instanceof Response) return rl;
+        // filter(Boolean) removes empty segments from trailing slashes
+        const segments = path.split('/').filter(Boolean);
+        const paymentId = segments[1] ?? '';
         response = await handleGetPayment(request, env, logger, requestId, paymentId);
-      } else if (path.startsWith('/subscription/') && path.endsWith('/cancel') && request.method === 'POST') {
-        const rateLimitResult = checkRateLimit(callerId, 'cancel-subscription');
-        if (rateLimitResult instanceof Response) return rateLimitResult;
-        const subscriptionId = path.split('/')[2];
+        response = await attachRateLimitHeaders(response, rl);
+
+      } else if (path.startsWith('/subscription/') && path.endsWith('/cancel')) {
+        if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
+        const rl = await checkRateLimit(callerId, 'cancel-subscription', env);
+        if (rl instanceof Response) return rl;
+        const segments = path.split('/').filter(Boolean);
+        const subscriptionId = segments[1] ?? '';
         response = await handleCancelSubscription(request, env, logger, requestId, subscriptionId);
+        response = await attachRateLimitHeaders(response, rl);
+
       } else {
-        response = errorResponse(
-          ERROR_CODES.NOT_FOUND,
-          'Not found',
-          `Unknown endpoint: ${path}`,
-          404,
-          requestId
-        );
+        response = errorResponse(ERROR_CODES.NOT_FOUND, 'Not found',
+          `Unknown endpoint: ${path}`, 404, { requestId, request, env });
       }
 
       const duration = Date.now() - startTime;
-      logger.info('Request completed', { duration, status: response.status });
+      ctx.waitUntil(Promise.resolve(logger.info('Request completed', { duration, status: response.status })));
 
       return response;
     } catch (error) {
       const duration = Date.now() - startTime;
       logger.error('Unhandled error', error instanceof Error ? error : undefined, { duration });
 
-      return errorResponse(
-        ERROR_CODES.INTERNAL_ERROR,
-        'Internal server error',
+      return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Internal server error',
         error instanceof Error ? error.message : 'Unknown error',
-        500,
-        requestId
-      );
+        500, { requestId, request, env });
     }
   },
-
-  // Scheduled handler for cleanup tasks
-  async scheduled(_event: ScheduledEvent, _env: Env, _ctx: ExecutionContext): Promise<void> {
-    // Cleanup old rate limit entries
-    cleanupRateLimitStore();
-  },
 };
+
+function methodNotAllowed(requestId: string, request: Request, env: Env): Response {
+  return errorResponse(
+    ERROR_CODES.METHOD_NOT_ALLOWED,
+    'Method not allowed',
+    `${request.method} is not allowed on this endpoint`,
+    405,
+    { requestId, request, env }
+  );
+}

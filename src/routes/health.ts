@@ -6,6 +6,7 @@ import type { Env, HealthCheckResponse } from '../types';
 import { API_VERSION, SERVICE_NAME, RAZORPAY_API_BASE_URL } from '../constants';
 import { jsonResponse } from '../utils/response';
 import { fetchWithTimeout } from '../utils/fetch';
+import { authenticateRequest } from '../middleware/auth';
 import type { Logger } from '../middleware/logger';
 
 const workerStartTime = Date.now();
@@ -24,7 +25,7 @@ export async function handleHealthCheck(
     version: API_VERSION,
     environment: env.ENVIRONMENT,
     timestamp: new Date().toISOString(),
-    uptime: Date.now() - workerStartTime,
+    isolate_uptime_ms: Date.now() - workerStartTime,
     endpoints: [
       'POST /create-order',
       'POST /verify-payment',
@@ -35,14 +36,18 @@ export async function handleHealthCheck(
     ],
   };
 
-  // Optional: Check Razorpay API connectivity (only if ?deep=true)
+  // Optional deep check — requires auth to prevent unauthenticated outbound Razorpay calls
   const url = new URL(request.url);
   if (url.searchParams.get('deep') === 'true') {
+    const authResult = await authenticateRequest(request, env);
+    if (authResult instanceof Response) {
+      return authResult;
+    }
+
     health.checks = {
       razorpay: await checkRazorpayConnection(env, logger),
     };
 
-    // Set status based on checks
     if (health.checks.razorpay === 'error') {
       health.status = 'degraded';
     }
@@ -51,7 +56,7 @@ export async function handleHealthCheck(
   const duration = Date.now() - startTime;
   logger.info('Health check completed', { duration, status: health.status });
 
-  return jsonResponse(health, 200, request);
+  return jsonResponse(health, 200, request, undefined, env);
 }
 
 async function checkRazorpayConnection(env: Env, logger: Logger): Promise<'ok' | 'error'> {

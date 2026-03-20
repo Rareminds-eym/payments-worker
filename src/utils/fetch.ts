@@ -50,7 +50,10 @@ export async function fetchWithRetry(
 
       // Retry on server errors (5xx)
       if (response.status >= 500 && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+        // Exponential backoff: 1s, 2s (max 2 retries = up to 3s sleep).
+        // Workers have a 30s CPU time limit — 3s of sleep is ~10% of that budget.
+        // If latency is critical, reduce maxRetries or cap delay at 500ms.
+        const delay = Math.pow(2, attempt) * 1000;
         logger?.warn(`Server error, retrying in ${delay}ms`, {
           attempt: attempt + 1,
           maxRetries,

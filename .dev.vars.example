@@ -10,4 +10,8 @@ RAZORPAY_KEY_SECRET=zUYP3rpWcSObKLIrVkPrm94p
 RAZORPAY_WEBHOOK_SECRET=your_webhook_secret_here
 
 # Environment (overrides wrangler.toml default of "production" during local dev)
-ENVIRONMENT=development
+ENVIRONMENT=local
+
+# CORS origins — comma-separated, no spaces around commas
+# For local dev, include localhost origins here alongside your production domains
+ALLOWED_ORIGINS=https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in,http://localhost:8788,http://localhost:5173,http://127.0.0.1:8788,http://127.0.0.1:5173

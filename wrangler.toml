@@ -36,6 +36,8 @@ enabled = true
 # Default (production) — used when deploying with: npm run deploy
 [vars]
 ENVIRONMENT = "production"
+# Add all production domains here — comma-separated, no spaces around commas
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
 
 # ─── LOCAL DEV ONLY ──────────────────────────────────────────────────────────
 # These vars are overridden by .dev.vars when wrangler dev loads it.
@@ -46,11 +48,10 @@ ENVIRONMENT = "production"
 # Development — wrangler deploy --env development
 [env.development.vars]
 ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
 
 # Staging — wrangler deploy --env staging
 [env.staging.vars]
 ENVIRONMENT = "staging"
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
 
-# ============================================================================
-# TRIGGERS — removed (cron cleanup was a no-op with per-isolate in-memory store)
-# ============================================================================

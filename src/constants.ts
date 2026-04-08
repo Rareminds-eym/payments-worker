@@ -37,20 +37,8 @@ export const RAZORPAY_API_TIMEOUT_MS = 10000; // 10 seconds
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15000; // 15 seconds
 
 // CORS Configuration
-export const ALLOWED_ORIGINS_PROD = [
-  'https://skillpassport.rareminds.in',
-  'https://www.skillpassport.rareminds.in',
-];
-
-export const ALLOWED_ORIGINS_DEV = [
-  ...ALLOWED_ORIGINS_PROD,
-  'http://localhost:8788',
-  'http://localhost:5173',
-  'http://127.0.0.1:8788',
-  'http://127.0.0.1:5173',
-];
-
-// Use ALLOWED_ORIGINS_DEV locally; response.ts picks the right list via env
+// Origins are configured via ALLOWED_ORIGINS in wrangler.toml [vars] (comma-separated).
+// For local dev, set ALLOWED_ORIGINS in .dev.vars to include localhost origins.
 
 // 1 hour — shorter than 24h to avoid stale CORS config being cached during incidents
 export const CORS_MAX_AGE = 3600;

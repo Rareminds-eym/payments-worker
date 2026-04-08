@@ -3,13 +3,17 @@
  */
 
 import type { ErrorResponse } from '../types';
-import { ALLOWED_ORIGINS_PROD, ALLOWED_ORIGINS_DEV, CORS_MAX_AGE } from '../constants';
+import { CORS_MAX_AGE } from '../constants';
 
-function getAllowedOrigins(env?: { ENVIRONMENT?: string }): string[] {
-  return env?.ENVIRONMENT === 'production' ? ALLOWED_ORIGINS_PROD : ALLOWED_ORIGINS_DEV;
+function getAllowedOrigins(env?: { ALLOWED_ORIGINS?: string }): string[] {
+  // All allowed origins come from ALLOWED_ORIGINS env var — comma-separated.
+  // Set in wrangler.toml [vars] for deployed envs, .dev.vars for local dev.
+  // If not set, no origins are allowed (fail closed).
+  if (!env?.ALLOWED_ORIGINS) return [];
+  return env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean);
 }
 
-function getCorsHeaders(origin: string | null, env?: { ENVIRONMENT?: string }): Record<string, string> {
+function getCorsHeaders(origin: string | null, env?: { ALLOWED_ORIGINS?: string }): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Request-ID',
@@ -25,7 +29,7 @@ function getCorsHeaders(origin: string | null, env?: { ENVIRONMENT?: string }): 
   return headers;
 }
 
-export function corsPreflightResponse(request: Request, env?: { ENVIRONMENT?: string }): Response {
+export function corsPreflightResponse(request: Request, env?: { ALLOWED_ORIGINS?: string }): Response {
   const origin = request.headers.get('Origin');
   return new Response(null, {
     status: 204,
@@ -38,7 +42,7 @@ export function jsonResponse(
   status = 200,
   request?: Request,
   additionalHeaders?: Record<string, string>,
-  env?: { ENVIRONMENT?: string }
+  env?: { ALLOWED_ORIGINS?: string }
 ): Response {
   const origin = request?.headers.get('Origin') || null;
 
@@ -62,7 +66,7 @@ export function jsonResponse(
 export interface ErrorResponseOptions {
   requestId?: string;
   request?: Request;
-  env?: { ENVIRONMENT?: string };
+  env?: { ALLOWED_ORIGINS?: string };
   additionalHeaders?: Record<string, string>;
 }
 

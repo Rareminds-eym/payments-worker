@@ -16,6 +16,11 @@ export interface Env {
 
   ENVIRONMENT: 'local' | 'development' | 'staging' | 'production';
 
+  // Comma-separated list of allowed CORS origins — set in wrangler.toml [vars]
+  // e.g. "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+  // For local dev, also add localhost origins in .dev.vars
+  ALLOWED_ORIGINS?: string;
+
   // Future: KV for rate limiting
   RATE_LIMIT_KV?: KVNamespace;
 }

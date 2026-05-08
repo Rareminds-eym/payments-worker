@@ -9,29 +9,20 @@ export interface Env {
   RAZORPAY_WEBHOOK_SECRET?: string;
 
   // Service JWT secret — shared between Pages Functions and this worker
-  RAZORPAY_SERVICE_SECRET?: string;
+  RAZORPAY_SERVICE_SECRET: string;
 
   // Service bindings
   EMAIL_SERVICE?: Fetcher;
 
   ENVIRONMENT: 'local' | 'development' | 'staging' | 'production';
 
+  // Comma-separated list of allowed CORS origins — set in wrangler.toml [vars]
+  // e.g. "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+  // For local dev, also add localhost origins in .dev.vars
+  ALLOWED_ORIGINS?: string;
+
   // Future: KV for rate limiting
   RATE_LIMIT_KV?: KVNamespace;
-}
-
-// Website configuration
-export interface WebsiteConfig {
-  id: string;
-  name: string;
-  environment: 'local' | 'development' | 'staging' | 'production';
-}
-
-// Request context (added by middleware)
-export interface RequestContext {
-  requestId: string;
-  website: WebsiteConfig;
-  startTime: number;
 }
 
 // Razorpay API Types
@@ -45,7 +36,6 @@ export interface CreateOrderRequest {
 export interface CreateOrderResponse {
   success: true;
   order: RazorpayOrder;
-  key_id: string;
 }
 
 export interface RazorpayOrder {
@@ -70,7 +60,7 @@ export interface VerifyPaymentRequest {
 
 export interface VerifyPaymentResponse {
   success: true;
-  verified: boolean;
+  verified: true;  // always true — handler returns 422 on failure, never verified: false
   message: string;
 }
 
@@ -117,13 +107,6 @@ export interface RazorpaySubscription {
   created_at: number;
 }
 
-export interface VerifyWebhookResponse {
-  success: true;
-  verified: boolean;
-  message: string;
-  payload: unknown | null;
-}
-
 // Error Response
 export interface ErrorResponse {
   success: false;
@@ -136,6 +119,17 @@ export interface ErrorResponse {
   request_id?: string;
 }
 
+// Razorpay API error shape returned on non-2xx responses
+export interface RazorpayErrorResponse {
+  error?: {
+    code?: string;
+    description?: string;
+    source?: string;
+    step?: string;
+    reason?: string;
+  };
+}
+
 // Health Check Response
 export interface HealthCheckResponse {
   status: 'ok' | 'degraded' | 'down';
@@ -143,7 +137,8 @@ export interface HealthCheckResponse {
   version: string;
   environment: string;
   timestamp: string;
-  uptime?: number;
+  /** Time since this isolate was cold-started (ms). Resets on each new isolate. */
+  isolate_uptime_ms?: number;
   endpoints: string[];
   checks?: {
     razorpay?: 'ok' | 'error';
@@ -151,14 +146,14 @@ export interface HealthCheckResponse {
 }
 
 // Logging
-export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+export type LogLevel = 'error' | 'warn' | 'info';
 
 export interface LogEntry {
   level: LogLevel;
   message: string;
   timestamp: string;
   requestId?: string;
-  website?: string;
+  callerId?: string;
   duration?: number;
   error?: {
     message: string;

@@ -1,19 +1,17 @@
 # Local secrets for wrangler dev — copy this to .dev.vars and fill in your values.
 # .dev.vars is gitignored and never deployed.
 
-# API keys used by Pages Functions to authenticate with this worker
-SKILLPASSPORT_API_KEY_PROD=prod-key-skillpassport-xxxxx
-SKILLPASSPORT_API_KEY_DEV=dev-key-skillpassport-xxxxx
+# Service JWT secret — must match the secret used by Pages Functions to sign JWTs
+RAZORPAY_SERVICE_SECRET=your_service_jwt_secret
 
 # Razorpay keys — use test keys (rzp_test_...) for local dev
-RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXXXXXX
-RAZORPAY_KEY_SECRET=your_razorpay_key_secret
-RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
-
-# Supabase
-SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_ANON_KEY=your_supabase_anon_key
+RAZORPAY_KEY_ID=rzp_test_RNNqYdwXmbBzxz
+RAZORPAY_KEY_SECRET=zUYP3rpWcSObKLIrVkPrm94p
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret_here
 
 # Environment (overrides wrangler.toml default of "production" during local dev)
-ENVIRONMENT=development
+ENVIRONMENT=local
+
+# CORS origins — comma-separated, no spaces around commas
+# For local dev, include localhost origins here alongside your production domains
+ALLOWED_ORIGINS=https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in,http://localhost:8788,http://localhost:5173,http://127.0.0.1:8788,http://127.0.0.1:5173

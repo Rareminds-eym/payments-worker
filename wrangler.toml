@@ -18,7 +18,7 @@ port = 9003
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "REPLACE_WITH_KV_ID"
+id = "a162f140e4464515a8d5a27b5ebc6c6b"
 preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
 
 # ============================================================================

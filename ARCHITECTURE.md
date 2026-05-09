@@ -2,7 +2,10 @@
 
 ## Overview
 
-`razorpay-api` is a Cloudflare Worker that acts as a shared Razorpay payment processing layer. It sits between the Pages Functions layer (business logic) and the Razorpay API. The frontend never calls this worker directly.
+`razorpay-api` is a Cloudflare Worker that acts as a shared Razorpay payment processing layer. It exposes two interfaces:
+
+1. **RPC (Service Binding)** — `PaymentService` WorkerEntrypoint with typed methods, called by Pages Functions via zero-latency service binding. No JWT, no HTTP overhead.
+2. **HTTP (fetch handler)** — For Razorpay webhook delivery and health checks. Razorpay POSTs webhooks directly to this worker's public URL.
 
 ```
 Browser
@@ -10,19 +13,21 @@ Browser
   ▼
 Cloudflare Pages (skillpassport.rareminds.in)
   │  Pages Functions (/api/payments/*)
-  │  - Holds business logic
-  │  - Signs service JWT with RAZORPAY_SERVICE_SECRET
+  │  - Holds business logic + Supabase access
+  │  - Calls PaymentService via Service Binding RPC (zero-latency)
   │  - Provides RAZORPAY_KEY_ID to frontend for checkout
   │
-  ▼  Authorization: Bearer <service-jwt>
+  ▼  Service Binding RPC (same thread, no network hop)
 razorpay-api Worker (this repo)
-  │  - Verifies service JWT
+  │  - PaymentService: createOrder, verifyPaymentSignature, getPayment, cancelSubscription
   │  - Validates input
-  │  - Rate limits per caller
   │  - Calls Razorpay API
   │
   ▼  Basic Auth (RAZORPAY_KEY_ID:RAZORPAY_KEY_SECRET)
 Razorpay API (api.razorpay.com/v1)
+  │
+  ▼  Webhook POST (x-razorpay-signature)
+razorpay-api Worker (fetch handler — /verify-webhook)
 ```
 
 ---

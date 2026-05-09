@@ -1,6 +1,12 @@
 /**
  * Cloudflare Worker: Razorpay API v2.0
+ *
+ * Exports:
+ * - PaymentService (WorkerEntrypoint) — RPC methods for service binding callers
+ * - default fetch handler — HTTP endpoints for webhooks and health checks
  */
+
+export { PaymentService } from './entrypoint';
 
 import type { Env, RateLimitInfo } from './types';
 import { ERROR_CODES } from './constants';
@@ -44,7 +50,21 @@ export default {
       return await handleHealthCheck(request, env, logger);
     }
 
-    // Authenticate
+    // Webhook verification — no JWT auth required.
+    // Razorpay calls this endpoint directly with its own x-razorpay-signature header.
+    // The handler verifies the webhook signature using RAZORPAY_WEBHOOK_SECRET.
+    if (path === '/verify-webhook') {
+      if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
+      const logger = createLogger(requestId, 'razorpay-webhook');
+      const rl = await checkRateLimit('razorpay-webhook', 'verify-webhook', env);
+      if (rl instanceof Response) return rl;
+      const response = await handleVerifyWebhook(request, env, logger, requestId);
+      return await attachRateLimitHeaders(response, rl);
+    }
+
+    // Authenticate — remaining HTTP endpoints require service JWT
+    // (kept for backward compatibility during migration; can be removed once
+    // all callers use RPC and only webhooks use the fetch handler)
     const authResult = await authenticateRequest(request, env);
     if (authResult instanceof Response) {
       return authResult;
@@ -75,13 +95,6 @@ export default {
         const rl = await checkRateLimit(callerId, 'verify-payment', env);
         if (rl instanceof Response) return rl;
         response = await handleVerifyPayment(request, env, logger, requestId);
-        response = await attachRateLimitHeaders(response, rl);
-
-      } else if (path === '/verify-webhook') {
-        if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
-        const rl = await checkRateLimit(callerId, 'verify-webhook', env);
-        if (rl instanceof Response) return rl;
-        response = await handleVerifyWebhook(request, env, logger, requestId);
         response = await attachRateLimitHeaders(response, rl);
 
       } else if (path.startsWith('/payment/')) {

@@ -8,8 +8,10 @@ export interface Env {
   RAZORPAY_KEY_SECRET: string;
   RAZORPAY_WEBHOOK_SECRET?: string;
 
-  // Service JWT secret — shared between Pages Functions and this worker
-  RAZORPAY_SERVICE_SECRET: string;
+  // Service JWT secret — shared between Pages Functions and this worker.
+  // Optional for RPC-based communication (service binding is the trust boundary).
+  // Still used by the fetch handler's auth middleware for backward compatibility.
+  RAZORPAY_SERVICE_SECRET?: string;
 
   // Service bindings
   EMAIL_SERVICE?: Fetcher;

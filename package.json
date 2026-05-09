@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 9003 --env-file .dev.vars",
+    "dev": "wrangler dev --port 9003",
     "deploy": "wrangler deploy",
     "deploy:development": "wrangler deploy --env development",
     "deploy:staging": "wrangler deploy --env staging",

@@ -135,7 +135,14 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         throw new Error(`RAZORPAY_API_ERROR: ${errData.error?.description || 'Failed to create order'}`);
       }
 
-      return data as RazorpayOrder;
+      const orderData = data as RazorpayOrder;
+      
+      // Inject the key_id used to create the order so the frontend can use it directly,
+      // avoiding mismatches between Pages env and Worker env.
+      return {
+        ...orderData,
+        key_id: this.env.RAZORPAY_KEY_ID,
+      };
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('RAZORPAY_API_ERROR:')) {
         throw error;

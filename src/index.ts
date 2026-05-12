@@ -52,46 +52,46 @@ async function handleHttpRequest(
 ): Promise<Response> {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-
-  if (request.method === 'OPTIONS') {
-    return corsPreflightResponse(request, env);
-  }
-
-  const url = new URL(request.url);
-  const path = url.pathname;
-
-  // Health check — no auth required
-  if (path === '/health') {
-    const logger = createLogger(requestId);
-    return await handleHealthCheck(request, env, logger);
-  }
-
-  // Webhook verification — no JWT auth required
-  if (path === '/verify-webhook') {
-    if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
-    const logger = createLogger(requestId, 'razorpay-webhook');
-    const rl = await checkRateLimit('razorpay-webhook', 'verify-webhook', env);
-    if (rl instanceof Response) return rl;
-    const response = await handleVerifyWebhook(request, env, logger, requestId);
-    return attachRateLimitHeaders(response, rl);
-  }
-
-  // Authenticate — remaining endpoints require service JWT
-  const authResult = await authenticateRequest(request, env);
-  if (authResult instanceof Response) {
-    return authResult;
-  }
-
-  const callerId = authResult.serviceId;
-  const logger = createLogger(requestId, callerId);
-
-  if (env.ENVIRONMENT !== 'local' && !env.RATE_LIMIT_KV) {
-    logger.warn('RATE_LIMIT_KV not bound — rate limiting is in-memory only (not distributed)');
-  }
-
-  logger.info('Request received', { method: request.method, path, caller: callerId });
+  let logger = createLogger(requestId);
 
   try {
+    if (request.method === 'OPTIONS') {
+      return corsPreflightResponse(request, env);
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Health check — no auth required
+    if (path === '/health') {
+      return await handleHealthCheck(request, env, logger);
+    }
+
+    // Webhook verification — no JWT auth required
+    if (path === '/verify-webhook') {
+      if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
+      logger = createLogger(requestId, 'razorpay-webhook');
+      const rl = await checkRateLimit('razorpay-webhook', 'verify-webhook', env);
+      if (rl instanceof Response) return rl;
+      const response = await handleVerifyWebhook(request, env, logger, requestId);
+      return attachRateLimitHeaders(response, rl);
+    }
+
+    // Authenticate — remaining endpoints require service JWT
+    const authResult = await authenticateRequest(request, env);
+    if (authResult instanceof Response) {
+      return authResult;
+    }
+
+    const callerId = authResult.serviceId;
+    logger = createLogger(requestId, callerId);
+
+    if (env.ENVIRONMENT !== 'local' && !env.RATE_LIMIT_KV) {
+      logger.warn('RATE_LIMIT_KV not bound — rate limiting is in-memory only (not distributed)');
+    }
+
+    logger.info('Request received', { method: request.method, path, caller: callerId });
+
     let response: Response;
 
     if (path === '/create-order') {
@@ -108,7 +108,7 @@ async function handleHttpRequest(
       response = await handleVerifyPayment(request, env, logger, requestId);
       response = attachRateLimitHeaders(response, rl);
 
-    } else if (path.startsWith('/payment/')) {
+    } else if (/^\/payment\/[^/]+$/.test(path)) {
       if (request.method !== 'GET') return methodNotAllowed(requestId, request, env);
       const rl = await checkRateLimit(callerId, 'get-payment', env);
       if (rl instanceof Response) return rl;
@@ -117,7 +117,7 @@ async function handleHttpRequest(
       response = await handleGetPayment(request, env, logger, requestId, paymentId);
       response = attachRateLimitHeaders(response, rl);
 
-    } else if (path.startsWith('/subscription/') && path.endsWith('/cancel')) {
+    } else if (/^\/subscription\/[^/]+\/cancel$/.test(path)) {
       if (request.method !== 'POST') return methodNotAllowed(requestId, request, env);
       const rl = await checkRateLimit(callerId, 'cancel-subscription', env);
       if (rl instanceof Response) return rl;

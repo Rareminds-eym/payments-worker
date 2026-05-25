@@ -1,6 +1,7 @@
 name = "razorpay-api"
 main = "src/index.ts"
-compatibility_date = "2025-05-09"
+compatibility_date = "2026-05-25"
+compatibility_flags = ["nodejs_compat"]
 
 # ============================================================================
 # LOCAL DEV

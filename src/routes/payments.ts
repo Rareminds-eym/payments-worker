@@ -3,9 +3,9 @@
  */
 
 import type { Env, VerifyPaymentRequest, VerifyPaymentResponse, GetPaymentResponse, RazorpayPayment, RazorpaySubscription, RazorpayErrorResponse } from '../types';
-import { RAZORPAY_API_BASE_URL, ERROR_CODES } from '../constants';
+import { RAZORPAY_API_BASE_URL, RAZORPAY_API_TIMEOUT_MS, ERROR_CODES } from '../constants';
 import { jsonResponse, errorResponse, timingSafeEqual, requireJsonContentType } from '../utils/response';
-import { fetchWithRetry } from '../utils/fetch';
+import { fetchWithRetry, readJsonWithTimeout } from '../utils/fetch';
 import type { Logger } from '../middleware/logger';
 
 // Validate Razorpay ID formats to prevent path traversal / SSRF
@@ -110,7 +110,7 @@ export async function handleGetPayment(
       logger
     );
 
-    const data = await response.json() as RazorpayPayment | RazorpayErrorResponse;
+    const data = await readJsonWithTimeout<RazorpayPayment | RazorpayErrorResponse>(response, RAZORPAY_API_TIMEOUT_MS, logger);
 
     if (!response.ok) {
       const errData = data as RazorpayErrorResponse;
@@ -204,6 +204,41 @@ export async function handleVerifyWebhook(
         'Signature verification failed', 401, opts);
     }
 
+    // Event dedup: Check if we already processed this event
+    const eventPayload = parsedPayload as Record<string, any>;
+    const eventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id;
+    if (eventId) {
+      const seen = await env.RATE_LIMIT_KV.get(`webhook:${eventId}`);
+      if (seen) {
+        logger.info('Duplicate webhook event, skipping', { eventId });
+        return jsonResponse(
+          { success: true, verified: true, status: 'duplicate', eventId },
+          200, request, { 'X-Request-ID': requestId }
+        );
+      }
+    }
+
+    // Timestamp window check: Reject events older than 5 minutes
+    const createdAt = eventPayload?.created_at;
+    if (typeof createdAt === 'number') {
+      const eventTime = new Date(createdAt * 1000);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (eventTime < fiveMinutesAgo) {
+        logger.warn('Replaying old webhook event rejected', {
+          eventId,
+          createdAt: eventTime.toISOString(),
+          now: new Date().toISOString()
+        });
+        return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Webhook event too old',
+          'Webhook event timestamp is more than 5 minutes in the past', 400, { requestId, request });
+      }
+    }
+
+    // Mark event as seen (7 day TTL)
+    if (eventId) {
+      await env.RATE_LIMIT_KV.put(`webhook:${eventId}`, '1', { expirationTtl: 86400 * 7 });
+    }
+
     return jsonResponse(
       { success: true, verified: true, message: 'Webhook signature verified', payload: parsedPayload },
       200, request, { 'X-Request-ID': requestId }
@@ -246,7 +281,7 @@ export async function handleCancelSubscription(
       logger
     );
 
-    const data = await response.json() as RazorpaySubscription | RazorpayErrorResponse;
+    const data = await readJsonWithTimeout<RazorpaySubscription | RazorpayErrorResponse>(response, RAZORPAY_API_TIMEOUT_MS, logger);
 
     if (!response.ok) {
       const errData = data as RazorpayErrorResponse;

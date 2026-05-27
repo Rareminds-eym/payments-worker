@@ -6,9 +6,10 @@ import type { Env, CreateOrderRequest, CreateOrderResponse, RazorpayOrder, Razor
 import {
   RAZORPAY_API_BASE_URL, MIN_AMOUNT, MAX_AMOUNT, MAX_RECEIPT_LENGTH,
   MAX_NOTES_SIZE, MAX_NOTE_KEY_LENGTH, MAX_NOTE_VALUE_LENGTH, ERROR_CODES,
+  RAZORPAY_API_TIMEOUT_MS,
 } from '../constants';
 import { jsonResponse, errorResponse, requireJsonContentType } from '../utils/response';
-import { fetchWithRetry } from '../utils/fetch';
+import { fetchWithRetry, readJsonWithTimeout } from '../utils/fetch';
 import type { Logger } from '../middleware/logger';
 
 export async function handleCreateOrder(
@@ -79,6 +80,20 @@ export async function handleCreateOrder(
     }
   }
 
+  // Read caller-provided idempotency key for dedup
+  const idempotencyKey = request.headers.get('Idempotency-Key');
+  if (!idempotencyKey) {
+    return errorResponse(ERROR_CODES.INVALID_INPUT, 'Missing idempotency key',
+      'Idempotency-Key header is required for order creation', 400, opts);
+  }
+
+  // Check if we already processed this idempotency key
+  const cachedResult = await env.RATE_LIMIT_KV.get(`order:${idempotencyKey}`);
+  if (cachedResult) {
+    logger.info('Returning cached order result', { idempotencyKey });
+    return jsonResponse(JSON.parse(cachedResult), 200, request, { 'X-Request-ID': requestId });
+  }
+
   logger.info('Creating Razorpay order', { amount, currency: currency || 'INR' });
 
   const razorpayAuth = btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
@@ -91,7 +106,7 @@ export async function handleCreateOrder(
         headers: {
           Authorization: `Basic ${razorpayAuth}`,
           'Content-Type': 'application/json',
-          'Idempotency-Key': requestId,
+          'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({
           amount,
@@ -104,7 +119,7 @@ export async function handleCreateOrder(
       logger
     );
 
-    const data = await response.json() as RazorpayOrder | RazorpayErrorResponse;
+    const data = await readJsonWithTimeout<RazorpayOrder | RazorpayErrorResponse>(response, RAZORPAY_API_TIMEOUT_MS, logger);
 
     if (!response.ok) {
       const errData = data as RazorpayErrorResponse;
@@ -117,9 +132,12 @@ export async function handleCreateOrder(
         errData.error?.description || 'Unknown error', response.status, opts);
     }
 
-    logger.info('Order created successfully', { orderId: (data as RazorpayOrder).id });
+    const orderData = data as RazorpayOrder;
+    logger.info('Order created successfully', { orderId: orderData.id });
 
-    const result: CreateOrderResponse = { success: true, order: data as RazorpayOrder };
+    // Cache the result for 24h to support retries with same idempotency key
+    const result: CreateOrderResponse = { success: true, order: orderData };
+    await env.RATE_LIMIT_KV.put(`order:${idempotencyKey}`, JSON.stringify(result), { expirationTtl: 86400 });
     return jsonResponse(result, 200, request, { 'X-Request-ID': requestId });
   } catch (error) {
     logger.error('Create order error', error instanceof Error ? error : undefined);

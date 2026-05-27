@@ -18,7 +18,7 @@ import {
   MAX_NOTE_KEY_LENGTH,
   MAX_NOTE_VALUE_LENGTH,
 } from './constants';
-import { fetchWithRetry } from './utils/fetch';
+import { fetchWithRetry, readJsonWithTimeout } from './utils/fetch';
 import { timingSafeEqual } from './utils/response';
 
 // ─── Exported Interfaces ────────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         2 // max retries
       );
 
-      const data = await response.json() as RazorpayOrder | RazorpayErrorResponse;
+      const data = await readJsonWithTimeout<RazorpayOrder | RazorpayErrorResponse>(response);
 
       if (!response.ok) {
         const errData = data as RazorpayErrorResponse;
@@ -221,7 +221,7 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         2 // max retries
       );
 
-      const data = await response.json() as RazorpayPayment | RazorpayErrorResponse;
+      const data = await readJsonWithTimeout<RazorpayPayment | RazorpayErrorResponse>(response);
 
       if (!response.ok) {
         const errData = data as RazorpayErrorResponse;
@@ -265,7 +265,7 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         0 // zero retries
       );
 
-      const data = await response.json() as RazorpaySubscription | RazorpayErrorResponse;
+      const data = await readJsonWithTimeout<RazorpaySubscription | RazorpayErrorResponse>(response);
 
       if (!response.ok) {
         const errData = data as RazorpayErrorResponse;

@@ -87,8 +87,8 @@ export async function handleCreateOrder(
       'Idempotency-Key header is required for order creation', 400, opts);
   }
 
-  // Check if we already processed this idempotency key
-  const cachedResult = await env.RATE_LIMIT_KV.get(`order:${idempotencyKey}`);
+  // Check if we already processed this idempotency key (skip if KV not bound)
+  const cachedResult = env.RATE_LIMIT_KV ? await env.RATE_LIMIT_KV.get(`order:${idempotencyKey}`) : null;
   if (cachedResult) {
     logger.info('Returning cached order result', { idempotencyKey });
     return jsonResponse(JSON.parse(cachedResult), 200, request, { 'X-Request-ID': requestId });
@@ -137,11 +137,13 @@ export async function handleCreateOrder(
 
     // Cache the result for 24h to support retries with same idempotency key
     const result: CreateOrderResponse = { success: true, order: orderData };
-    await env.RATE_LIMIT_KV.put(`order:${idempotencyKey}`, JSON.stringify(result), { expirationTtl: 86400 });
+    if (env.RATE_LIMIT_KV) {
+      await env.RATE_LIMIT_KV.put(`order:${idempotencyKey}`, JSON.stringify(result), { expirationTtl: 86400 });
+    }
     return jsonResponse(result, 200, request, { 'X-Request-ID': requestId });
   } catch (error) {
     logger.error('Create order error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to create order',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }

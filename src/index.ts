@@ -140,7 +140,7 @@ async function handleHttpRequest(
     logger.error('Unhandled error', error instanceof Error ? error : undefined, { duration });
 
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Internal server error',
-      error instanceof Error ? error.message : 'Unknown error',
+      error instanceof Error ? error.message : String(error),
       500, { requestId, request, env });
   }
 }

@@ -26,7 +26,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20231218.0",
+    "@cloudflare/workers-types": "^4.20260528.1",
     "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",

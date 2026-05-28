@@ -23,7 +23,7 @@ export interface Env {
   // For local dev, also add localhost origins in .dev.vars
   ALLOWED_ORIGINS?: string;
 
-  // Future: KV for rate limiting
+  // KV namespace for distributed rate limiting (in-memory fallback if unbound)
   RATE_LIMIT_KV?: KVNamespace;
 }
 
@@ -52,6 +52,8 @@ export interface RazorpayOrder {
   attempts: number;
   notes: Record<string, string>;
   created_at: number;
+  /** Injected by PaymentService.createOrder so frontend can use it directly */
+  key_id?: string;
 }
 
 export interface VerifyPaymentRequest {

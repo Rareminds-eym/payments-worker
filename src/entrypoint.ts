@@ -158,8 +158,8 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         console.error(JSON.stringify({ rid: requestId, method: 'createOrder', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      console.error(JSON.stringify({ rid: requestId, method: 'createOrder', error: error instanceof Error ? error.message : 'Unknown error', ms: Date.now() - start }));
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'createOrder', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -213,8 +213,8 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         console.error(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      console.error(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', error: error instanceof Error ? error.message : 'Unknown error', ms: Date.now() - start }));
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -260,8 +260,8 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         console.error(JSON.stringify({ rid: requestId, method: 'getPayment', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      console.error(JSON.stringify({ rid: requestId, method: 'getPayment', error: error instanceof Error ? error.message : 'Unknown error', ms: Date.now() - start }));
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'getPayment', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -312,8 +312,8 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         console.error(JSON.stringify({ rid: requestId, method: 'cancelSubscription', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      console.error(JSON.stringify({ rid: requestId, method: 'cancelSubscription', error: error instanceof Error ? error.message : 'Unknown error', ms: Date.now() - start }));
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'cancelSubscription', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -374,8 +374,8 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         console.error(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      console.error(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', error: error instanceof Error ? error.message : 'Unknown error', ms: Date.now() - start }));
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

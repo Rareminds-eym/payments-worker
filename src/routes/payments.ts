@@ -80,7 +80,7 @@ export async function handleVerifyPayment(
   } catch (error) {
     logger.error('Verify payment error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to verify signature',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }
 
@@ -130,7 +130,7 @@ export async function handleGetPayment(
   } catch (error) {
     logger.error('Get payment error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch payment',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }
 
@@ -207,7 +207,7 @@ export async function handleVerifyWebhook(
     // Event dedup: Check if we already processed this event
     const eventPayload = parsedPayload as Record<string, any>;
     const eventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id;
-    if (eventId) {
+    if (eventId && env.RATE_LIMIT_KV) {
       const seen = await env.RATE_LIMIT_KV.get(`webhook:${eventId}`);
       if (seen) {
         logger.info('Duplicate webhook event, skipping', { eventId });
@@ -235,7 +235,7 @@ export async function handleVerifyWebhook(
     }
 
     // Mark event as seen (7 day TTL)
-    if (eventId) {
+    if (eventId && env.RATE_LIMIT_KV) {
       await env.RATE_LIMIT_KV.put(`webhook:${eventId}`, '1', { expirationTtl: 86400 * 7 });
     }
 
@@ -246,7 +246,7 @@ export async function handleVerifyWebhook(
   } catch (error) {
     logger.error('Verify webhook error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to verify webhook',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }
 
@@ -301,6 +301,6 @@ export async function handleCancelSubscription(
   } catch (error) {
     logger.error('Cancel subscription error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to cancel subscription',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }

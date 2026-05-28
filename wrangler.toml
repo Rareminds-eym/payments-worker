@@ -28,6 +28,13 @@ id = "a162f140e4464515a8d5a27b5ebc6c6b"
 [observability]
 enabled = true
 
+[observability.logs]
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.01
+
 # ============================================================================
 # VARIABLES
 # ============================================================================

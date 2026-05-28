@@ -21,10 +21,6 @@ port = 9003
 binding = "RATE_LIMIT_KV"
 id = "a162f140e4464515a8d5a27b5ebc6c6b"
 
-[[kv_namespaces]]
-binding = "PREVIEW_KV"
-id = "" # TODO: Run `npx wrangler kv:namespace create PREVIEW_KV` and paste the id here
-
 # ============================================================================
 # OBSERVABILITY
 # ============================================================================

@@ -7,8 +7,10 @@
   "scripts": {
     "dev": "wrangler dev --port 9003",
     "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
     "deploy:development": "wrangler deploy --env development",
     "deploy:staging": "wrangler deploy --env staging",
+    "deploy:demo": "wrangler deploy --env demo",
     "tail": "wrangler tail",
     "secrets:list": "wrangler secret list",
     "secrets:setup": "bash scripts/setup-secrets.sh",

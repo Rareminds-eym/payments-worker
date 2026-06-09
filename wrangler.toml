@@ -1,4 +1,4 @@
-name = "razorpay-api"
+name = "razorpay-api-dev"
 main = "src/index.ts"
 compatibility_date = "2026-05-25"
 compatibility_flags = ["nodejs_compat"]
@@ -19,7 +19,8 @@ port = 9003
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "a162f140e4464515a8d5a27b5ebc6c6b"
+id = "a01a250ae61941a6adb3b4c702b6ea2f"
+preview_id = "a01a250ae61941a6adb3b4c702b6ea2f"
 
 # ============================================================================
 # OBSERVABILITY
@@ -40,11 +41,10 @@ head_sampling_rate = 0.01
 # ============================================================================
 # Non-secret vars only. All secrets are set via: wrangler secret put
 
-# Default (production) — used when deploying with: npm run deploy
+# Default (dev) — used when deploying with: wrangler deploy
 [vars]
-ENVIRONMENT = "production"
-# Add all production domains here — comma-separated, no spaces around commas
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+ENVIRONMENT = "dev"
+ALLOWED_ORIGINS = "https://dev.skillpassports.com"
 
 # ─── LOCAL DEV ONLY ──────────────────────────────────────────────────────────
 # These vars are overridden by .dev.vars when wrangler dev loads it.
@@ -57,8 +57,48 @@ ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.
 ENVIRONMENT = "development"
 ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
 
-# Staging — wrangler deploy --env staging
+# ============================================================================
+# STAGING — wrangler deploy --env staging
+# Deploys as: razorpay-api-staging
+# ============================================================================
+[env.staging]
+name = "razorpay-api-staging"
+
 [env.staging.vars]
 ENVIRONMENT = "staging"
+ALLOWED_ORIGINS = "https://staging.skillpassports.com"
+
+[[env.staging.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "bd5c0a1fa7554a91b6acbff1b345997e"
+
+# ============================================================================
+# DEMO — wrangler deploy --env demo
+# Deploys as: razorpay-api-demo
+# ============================================================================
+[env.demo]
+name = "razorpay-api-demo"
+
+[env.demo.vars]
+ENVIRONMENT = "demo"
+ALLOWED_ORIGINS = "https://demo.skillpassports.com"
+
+[[env.demo.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "ea3223cc72424e06a73f5916b024f906"
+
+# ============================================================================
+# PRODUCTION — wrangler deploy --env production
+# Deploys as: razorpay-api-production
+# ============================================================================
+[env.production]
+name = "razorpay-api-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+# Add all production domains here — comma-separated, no spaces around commas
 ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
 
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "a162f140e4464515a8d5a27b5ebc6c6b"

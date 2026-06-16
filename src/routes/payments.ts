@@ -239,8 +239,26 @@ export async function handleVerifyWebhook(
       await env.RATE_LIMIT_KV.put(`webhook:${eventId}`, '1', { expirationTtl: 86400 * 7 });
     }
 
+    // Forward verified webhook to the generic queue
+    if (env.WEBHOOK_QUEUE) {
+      try {
+        const eventPayload = parsedPayload as Record<string, any>;
+        const extractedEventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id || `webhook_${Date.now()}`;
+        const eventType = eventPayload?.event || eventPayload?.event_type || 'unknown';
+        
+        await env.WEBHOOK_QUEUE.send({
+          event_id: extractedEventId,
+          event_type: eventType,
+          payload: parsedPayload,
+        });
+        logger.info('Webhook forwarded to queue', { eventId: extractedEventId });
+      } catch (err) {
+        logger.error('Failed to forward webhook to queue', err instanceof Error ? err : undefined);
+      }
+    }
+
     return jsonResponse(
-      { success: true, verified: true, message: 'Webhook signature verified', payload: parsedPayload },
+      { success: true, verified: true, message: 'Webhook signature verified and forwarded', payload: parsedPayload },
       200, request, { 'X-Request-ID': requestId }
     );
   } catch (error) {

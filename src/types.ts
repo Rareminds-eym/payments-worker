@@ -25,6 +25,9 @@ export interface Env {
 
   // KV namespace for distributed rate limiting (in-memory fallback if unbound)
   RATE_LIMIT_KV?: KVNamespace;
+
+  // Queue for publishing webhook events
+  WEBHOOK_QUEUE?: Queue<any>;
 }
 
 // Razorpay API Types

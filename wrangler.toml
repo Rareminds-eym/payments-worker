@@ -21,6 +21,10 @@ port = 9003
 binding = "RATE_LIMIT_KV"
 id = "a162f140e4464515a8d5a27b5ebc6c6b"
 
+[[queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "payment-webhooks-queue"
+
 # ============================================================================
 # OBSERVABILITY
 # ============================================================================
@@ -57,8 +61,25 @@ ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.
 ENVIRONMENT = "development"
 ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
 
+[[env.development.queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "payment-webhooks-queue-dev"
+
+# Demo — wrangler deploy --env demo
+[env.demo.vars]
+ENVIRONMENT = "demo"
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+
+[[env.demo.queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "payment-webhooks-queue-demo"
+
 # Staging — wrangler deploy --env staging
 [env.staging.vars]
 ENVIRONMENT = "staging"
 ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+
+[[env.staging.queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "payment-webhooks-queue-staging"
 

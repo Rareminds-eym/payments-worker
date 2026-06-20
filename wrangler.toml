@@ -1,7 +1,8 @@
-name = "razorpay-api"
+name = "razorpay-api-dev"
 main = "src/index.ts"
 compatibility_date = "2026-05-25"
 compatibility_flags = ["nodejs_compat"]
+account_id = "d10c2b1a3d702c710a036bc5a6d0902e"
 
 # ============================================================================
 # LOCAL DEV
@@ -23,7 +24,7 @@ id = "a162f140e4464515a8d5a27b5ebc6c6b"
 
 [[queues.producers]]
 binding = "WEBHOOK_QUEUE"
-queue = "payment-webhooks-queue"
+queue = "payment-webhooks-queue-dev"
 
 # ============================================================================
 # OBSERVABILITY
@@ -44,42 +45,56 @@ head_sampling_rate = 0.01
 # ============================================================================
 # Non-secret vars only. All secrets are set via: wrangler secret put
 
-# Default (production) — used when deploying with: npm run deploy
+# Default (dev) — used when deploying with: npm run deploy
 [vars]
-ENVIRONMENT = "production"
-# Add all production domains here — comma-separated, no spaces around commas
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+ENVIRONMENT = "dev"
+ALLOWED_ORIGINS = "https://dev.skillpassports.com,https://*.pages.dev"
 
-# ─── LOCAL DEV ONLY ──────────────────────────────────────────────────────────
-# These vars are overridden by .dev.vars when wrangler dev loads it.
-# If wrangler fails to load .dev.vars, these placeholders prevent silent failures.
-# Real secrets for local dev go in .dev.vars (gitignored).
-# NEVER put real production secrets here.
+# ============================================================================
+# STAGING — wrangler deploy --env staging
+# Deploys as: razorpay-api-staging
+# ============================================================================
 
-# Development — wrangler deploy --env development
-[env.development.vars]
-ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+[env.staging]
+name = "razorpay-api-staging"
 
-[[env.development.queues.producers]]
+[env.staging.vars]
+ENVIRONMENT = "staging"
+ALLOWED_ORIGINS = "https://staging.skillpassports.com,https://*.pages.dev"
+
+[[env.staging.queues.producers]]
 binding = "WEBHOOK_QUEUE"
-queue = "payment-webhooks-queue-dev"
+queue = "payment-webhooks-queue-staging"
 
-# Demo — wrangler deploy --env demo
+# ============================================================================
+# DEMO — wrangler deploy --env demo
+# Deploys as: razorpay-api-demo
+# ============================================================================
+
+[env.demo]
+name = "razorpay-api-demo"
+
 [env.demo.vars]
 ENVIRONMENT = "demo"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+ALLOWED_ORIGINS = "https://demo.skillpassports.com,https://*.pages.dev"
 
 [[env.demo.queues.producers]]
 binding = "WEBHOOK_QUEUE"
 queue = "payment-webhooks-queue-demo"
 
-# Staging — wrangler deploy --env staging
-[env.staging.vars]
-ENVIRONMENT = "staging"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+# ============================================================================
+# PRODUCTION — wrangler deploy --env production
+# Deploys as: razorpay-api-production
+# ============================================================================
 
-[[env.staging.queues.producers]]
+[env.production]
+name = "razorpay-api-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in,https://*.pages.dev"
+
+[[env.production.queues.producers]]
 binding = "WEBHOOK_QUEUE"
-queue = "payment-webhooks-queue-staging"
+queue = "payment-webhooks-queue-production"
 

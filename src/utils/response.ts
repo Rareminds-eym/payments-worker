@@ -5,6 +5,27 @@
 import type { ErrorResponse } from '../types';
 import { CORS_MAX_AGE } from '../constants';
 
+function originMatchesPattern(origin: string, pattern: string): boolean {
+  if (pattern === '*') return true;
+
+  if (pattern.includes('*.')) {
+    const wildcardSuffix = pattern.replace('*.', '');
+    try {
+      const originUrl = new URL(origin);
+      const patternUrl = new URL(wildcardSuffix);
+      return (
+        originUrl.protocol === patternUrl.protocol &&
+        (originUrl.hostname === patternUrl.hostname ||
+          originUrl.hostname.endsWith('.' + patternUrl.hostname))
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  return origin === pattern;
+}
+
 function getAllowedOrigins(env?: { ALLOWED_ORIGINS?: string }): string[] {
   // All allowed origins come from ALLOWED_ORIGINS env var — comma-separated.
   // Set in wrangler.toml [vars] for deployed envs, .dev.vars for local dev.
@@ -22,7 +43,7 @@ function getCorsHeaders(origin: string | null, env?: { ALLOWED_ORIGINS?: string 
     'Vary': 'Origin',
   };
 
-  if (origin && getAllowedOrigins(env).includes(origin)) {
+  if (origin && getAllowedOrigins(env).some(p => originMatchesPattern(origin, p))) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
 

@@ -35,6 +35,7 @@ export const RATE_LIMIT_MAX_REQUESTS = {
 // Timeouts
 export const RAZORPAY_API_TIMEOUT_MS = 10000; // 10 seconds
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15000; // 15 seconds
+export const RESPONSE_BODY_TIMEOUT_MS = 5000; // 5 seconds for reading response body
 
 // CORS Configuration
 // Origins are configured via ALLOWED_ORIGINS in wrangler.toml [vars] (comma-separated).

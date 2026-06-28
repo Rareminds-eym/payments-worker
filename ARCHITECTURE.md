@@ -103,6 +103,10 @@ The Pages Functions layer generates this JWT before calling the worker. No brows
 }
 ```
 
+### Authentication Note
+
+**Webhooks bypass JWT auth.** The `/verify-webhook` path is verified using Razorpay's HMAC-SHA256 signature (`RAZORPAY_WEBHOOK_SECRET`), not the service JWT. This is because Razorpay POSTs webhooks directly to this worker's public URL — there is no Pages Functions intermediary to attach a JWT. The code checks `pathname === '/verify-webhook'` before reaching the `authenticateRequest()` call. The same applies to `GET /health`. All other endpoints require a valid service JWT in the `Authorization: Bearer <token>` header.
+
 All responses include `X-Request-ID` and `X-RateLimit-*` headers (except preflight and unauthenticated errors).
 
 ---

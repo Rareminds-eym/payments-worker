@@ -1,13 +1,15 @@
 /**
  * Authentication middleware for the HTTP fetch handler.
  *
- * NOTE: This middleware is only used by the fetch handler for the deep health
- * check endpoint. All payment operations now go through the PaymentService
- * WorkerEntrypoint via Cloudflare Service Binding RPC — which doesn't need
- * JWT auth (the binding itself is the trust boundary).
+ * Used for all non-health, non-webhook endpoints reaching the fetch handler
+ * (`/create-order`, `/verify-payment`, `/payment/:id`, `/subscription/:id/cancel`).
  *
- * Webhooks use their own signature verification (RAZORPAY_WEBHOOK_SECRET)
- * and don't pass through this middleware either.
+ * Payment operations also go through the PaymentService WorkerEntrypoint
+ * via Cloudflare Service Binding RPC — which uses the binding itself as the
+ * trust boundary and does NOT need this JWT middleware.
+ *
+ * Webhooks use their own signature verification (RAZORPAY_WEBHOOK_SECRET).
+ * Health checks skip auth entirely.
  *
  * The RAZORPAY_SERVICE_SECRET env var is kept for backward compatibility
  * but is effectively optional for RPC-based communication.
@@ -41,13 +43,17 @@ export async function authenticateRequest(request: Request, env: Env): Promise<A
     const secret = new TextEncoder().encode(env.RAZORPAY_SERVICE_SECRET);
     const { payload } = await jose.jwtVerify(token, secret);
 
+    if (typeof payload.service_id !== 'string') {
+      return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Invalid service JWT', 'Malformed payload: service_id must be a string', 401);
+    }
+
     if (payload.service_id !== SERVICE_ID) {
       return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Invalid service JWT', 'Unrecognized service_id', 401);
     }
 
     return {
-      serviceId: payload.service_id as string,
-      userJwtHash: payload.user_jwt_hash as string | undefined,
+      serviceId: payload.service_id,
+      userJwtHash: typeof payload.user_jwt_hash === 'string' ? payload.user_jwt_hash : undefined,
     };
   } catch {
     return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Invalid service JWT', 'JWT verification failed', 401);

@@ -85,3 +85,30 @@ export async function fetchWithRetry(
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+const RESPONSE_BODY_TIMEOUT_MS = 5000;
+
+export async function readJsonWithTimeout<T>(
+  response: Response,
+  timeoutMs: number = RESPONSE_BODY_TIMEOUT_MS,
+  logger?: Logger
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Response body read timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([
+      response.json() as Promise<T>,
+      timeoutPromise,
+    ]);
+    return result;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Response body read timeout')) {
+      logger?.error('Response body read timeout', error, { timeoutMs, status: response.status });
+    }
+    throw error;
+  }
+}

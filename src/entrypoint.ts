@@ -18,7 +18,7 @@ import {
   MAX_NOTE_KEY_LENGTH,
   MAX_NOTE_VALUE_LENGTH,
 } from './constants';
-import { fetchWithRetry } from './utils/fetch';
+import { fetchWithRetry, readJsonWithTimeout } from './utils/fetch';
 import { timingSafeEqual } from './utils/response';
 
 // ─── Exported Interfaces ────────────────────────────────────────────────────────
@@ -50,6 +50,10 @@ const RAZORPAY_SUBSCRIPTION_ID_RE = /^sub_[A-Za-z0-9]{14,}$/;
 // ─── PaymentService Class ───────────────────────────────────────────────────────
 
 export class PaymentService extends WorkerEntrypoint<Env> {
+  private rid(): string {
+    return crypto.randomUUID();
+  }
+
   /**
    * Create a Razorpay order.
    * @throws Error with INVALID_INPUT prefix on validation failure
@@ -57,7 +61,11 @@ export class PaymentService extends WorkerEntrypoint<Env> {
    * @throws Error with INTERNAL_ERROR prefix on unexpected failures
    */
   async createOrder(params: CreateOrderParams): Promise<RazorpayOrder> {
+    const requestId = this.rid();
+    const start = Date.now();
     const { amount, currency, receipt, notes } = params;
+
+    console.log(JSON.stringify({ rid: requestId, method: 'createOrder', amount, currency, receipt, ms: 0 }));
 
     // ── Input Validation ──────────────────────────────────────────────────────
 
@@ -128,7 +136,7 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         2 // max retries
       );
 
-      const data = await response.json() as RazorpayOrder | RazorpayErrorResponse;
+      const data = await readJsonWithTimeout<RazorpayOrder | RazorpayErrorResponse>(response);
 
       if (!response.ok) {
         const errData = data as RazorpayErrorResponse;
@@ -136,7 +144,9 @@ export class PaymentService extends WorkerEntrypoint<Env> {
       }
 
       const orderData = data as RazorpayOrder;
-      
+
+      console.log(JSON.stringify({ rid: requestId, method: 'createOrder', orderId: orderData.id, amount, ms: Date.now() - start }));
+
       // Inject the key_id used to create the order so the frontend can use it directly,
       // avoiding mismatches between Pages env and Worker env.
       return {
@@ -145,9 +155,11 @@ export class PaymentService extends WorkerEntrypoint<Env> {
       };
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('RAZORPAY_API_ERROR:')) {
+        console.error(JSON.stringify({ rid: requestId, method: 'createOrder', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'createOrder', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -162,6 +174,11 @@ export class PaymentService extends WorkerEntrypoint<Env> {
     paymentId: string,
     signature: string
   ): Promise<VerifyPaymentResult> {
+    const requestId = this.rid();
+    const start = Date.now();
+
+    console.log(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', orderId, paymentId, ms: 0 }));
+
     if (!orderId || !paymentId || !signature) {
       throw new Error('INVALID_INPUT: orderId, paymentId, and signature are required');
     }
@@ -189,12 +206,15 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         throw new Error('UNAUTHORIZED: Payment signature verification failed');
       }
 
+      console.log(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', result: 'verified', ms: Date.now() - start }));
       return { verified: true, message: 'Payment signature verified' };
     } catch (error) {
       if (error instanceof Error && (error.message.startsWith('UNAUTHORIZED:') || error.message.startsWith('INVALID_INPUT:'))) {
+        console.error(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'verifyPaymentSignature', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -205,6 +225,11 @@ export class PaymentService extends WorkerEntrypoint<Env> {
    * @throws Error with INTERNAL_ERROR prefix on unexpected failures
    */
   async getPayment(paymentId: string): Promise<RazorpayPayment> {
+    const requestId = this.rid();
+    const start = Date.now();
+
+    console.log(JSON.stringify({ rid: requestId, method: 'getPayment', paymentId, ms: 0 }));
+
     if (!paymentId || !RAZORPAY_PAYMENT_ID_RE.test(paymentId)) {
       throw new Error('INVALID_INPUT: Payment ID must match format pay_XXXXXXXXXXXXXX');
     }
@@ -221,19 +246,22 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         2 // max retries
       );
 
-      const data = await response.json() as RazorpayPayment | RazorpayErrorResponse;
+      const data = await readJsonWithTimeout<RazorpayPayment | RazorpayErrorResponse>(response);
 
       if (!response.ok) {
         const errData = data as RazorpayErrorResponse;
         throw new Error(`RAZORPAY_API_ERROR: ${errData.error?.description || 'Failed to fetch payment'}`);
       }
 
+      console.log(JSON.stringify({ rid: requestId, method: 'getPayment', result: 'success', ms: Date.now() - start }));
       return data as RazorpayPayment;
     } catch (error) {
       if (error instanceof Error && (error.message.startsWith('RAZORPAY_API_ERROR:') || error.message.startsWith('INVALID_INPUT:'))) {
+        console.error(JSON.stringify({ rid: requestId, method: 'getPayment', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'getPayment', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -244,6 +272,11 @@ export class PaymentService extends WorkerEntrypoint<Env> {
    * @throws Error with INTERNAL_ERROR prefix on unexpected failures
    */
   async cancelSubscription(subscriptionId: string): Promise<RazorpaySubscription> {
+    const requestId = this.rid();
+    const start = Date.now();
+
+    console.log(JSON.stringify({ rid: requestId, method: 'cancelSubscription', subscriptionId, ms: 0 }));
+
     if (!subscriptionId || !RAZORPAY_SUBSCRIPTION_ID_RE.test(subscriptionId)) {
       throw new Error('INVALID_INPUT: Subscription ID must match format sub_XXXXXXXXXXXXXX');
     }
@@ -265,19 +298,22 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         0 // zero retries
       );
 
-      const data = await response.json() as RazorpaySubscription | RazorpayErrorResponse;
+      const data = await readJsonWithTimeout<RazorpaySubscription | RazorpayErrorResponse>(response);
 
       if (!response.ok) {
         const errData = data as RazorpayErrorResponse;
         throw new Error(`RAZORPAY_API_ERROR: ${errData.error?.description || 'Failed to cancel subscription'}`);
       }
 
+      console.log(JSON.stringify({ rid: requestId, method: 'cancelSubscription', result: 'success', ms: Date.now() - start }));
       return data as RazorpaySubscription;
     } catch (error) {
       if (error instanceof Error && (error.message.startsWith('RAZORPAY_API_ERROR:') || error.message.startsWith('INVALID_INPUT:'))) {
+        console.error(JSON.stringify({ rid: requestId, method: 'cancelSubscription', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'cancelSubscription', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -288,6 +324,11 @@ export class PaymentService extends WorkerEntrypoint<Env> {
    * @throws Error with INTERNAL_ERROR prefix if webhook secret is not configured
    */
   async verifyWebhookSignature(body: string, signature: string): Promise<VerifyWebhookResult> {
+    const requestId = this.rid();
+    const start = Date.now();
+
+    console.log(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', bodyLength: body?.length, ms: 0 }));
+
     if (!body || !signature) {
       throw new Error('INVALID_INPUT: body and signature are required');
     }
@@ -326,12 +367,15 @@ export class PaymentService extends WorkerEntrypoint<Env> {
         payload = undefined;
       }
 
+      console.log(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', result: 'verified', ms: Date.now() - start }));
       return { verified: true, message: 'Webhook signature verified', payload };
     } catch (error) {
       if (error instanceof Error && (error.message.startsWith('UNAUTHORIZED:') || error.message.startsWith('INVALID_INPUT:') || error.message.startsWith('INTERNAL_ERROR:'))) {
+        console.error(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', error: error.message, ms: Date.now() - start }));
         throw error;
       }
-      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(JSON.stringify({ rid: requestId, method: 'verifyWebhookSignature', error: error instanceof Error ? error.message : String(error), ms: Date.now() - start }));
+      throw new Error(`INTERNAL_ERROR: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

@@ -3,55 +3,27 @@ main = "src/index.ts"
 compatibility_date = "2026-05-25"
 compatibility_flags = ["nodejs_compat"]
 
-# ============================================================================
-# LOCAL DEV
-# ============================================================================
-# wrangler dev reads .dev.vars automatically for secrets when --env-file is set.
-# Port is also declared here as a fallback.
-
 [dev]
 port = 9003
-
-# ============================================================================
-# BINDINGS
-# ============================================================================
-# Run `npm run kv:create` once to provision, then paste the returned id below.
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "a162f140e4464515a8d5a27b5ebc6c6b"
 
-# ============================================================================
-# OBSERVABILITY
-# ============================================================================
+[[queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "payment-webhooks-queue"
 
 [observability]
 enabled = true
 
-# ============================================================================
-# VARIABLES
-# ============================================================================
-# Non-secret vars only. All secrets are set via: wrangler secret put
+[observability.logs]
+head_sampling_rate = 1
 
-# Default (production) — used when deploying with: npm run deploy
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.01
+
 [vars]
 ENVIRONMENT = "production"
-# Add all production domains here — comma-separated, no spaces around commas
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
-
-# ─── LOCAL DEV ONLY ──────────────────────────────────────────────────────────
-# These vars are overridden by .dev.vars when wrangler dev loads it.
-# If wrangler fails to load .dev.vars, these placeholders prevent silent failures.
-# Real secrets for local dev go in .dev.vars (gitignored).
-# NEVER put real production secrets here.
-
-# Development — wrangler deploy --env development
-[env.development.vars]
-ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
-
-# Staging — wrangler deploy --env staging
-[env.staging.vars]
-ENVIRONMENT = "staging"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
-
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,http://localhost:8788,http://localhost:9003,https://*.rareminds.in,https://*.pages.dev,https://rareminds.in,https://www.rareminds.in,https://rareminds-website.pages.dev,http://127.0.0.1:8788,http://127.0.0.1:9003"

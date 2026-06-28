@@ -19,12 +19,15 @@ export interface Env {
   ENVIRONMENT: 'local' | 'development' | 'staging' | 'production';
 
   // Comma-separated list of allowed CORS origins — set in wrangler.toml [vars]
-  // e.g. "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+  // Supports wildcard subdomains with *., e.g. "https://*.rareminds.in"
   // For local dev, also add localhost origins in .dev.vars
   ALLOWED_ORIGINS?: string;
 
-  // Future: KV for rate limiting
+  // KV namespace for distributed rate limiting (in-memory fallback if unbound)
   RATE_LIMIT_KV?: KVNamespace;
+
+  // Queue for publishing webhook events
+  WEBHOOK_QUEUE?: Queue<any>;
 }
 
 // Razorpay API Types
@@ -52,6 +55,8 @@ export interface RazorpayOrder {
   attempts: number;
   notes: Record<string, string>;
   created_at: number;
+  /** Injected by PaymentService.createOrder so frontend can use it directly */
+  key_id?: string;
 }
 
 export interface VerifyPaymentRequest {

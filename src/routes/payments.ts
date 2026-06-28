@@ -3,9 +3,9 @@
  */
 
 import type { Env, VerifyPaymentRequest, VerifyPaymentResponse, GetPaymentResponse, RazorpayPayment, RazorpaySubscription, RazorpayErrorResponse } from '../types';
-import { RAZORPAY_API_BASE_URL, ERROR_CODES } from '../constants';
+import { RAZORPAY_API_BASE_URL, RAZORPAY_API_TIMEOUT_MS, ERROR_CODES } from '../constants';
 import { jsonResponse, errorResponse, timingSafeEqual, requireJsonContentType } from '../utils/response';
-import { fetchWithRetry } from '../utils/fetch';
+import { fetchWithRetry, readJsonWithTimeout } from '../utils/fetch';
 import type { Logger } from '../middleware/logger';
 
 // Validate Razorpay ID formats to prevent path traversal / SSRF
@@ -80,7 +80,7 @@ export async function handleVerifyPayment(
   } catch (error) {
     logger.error('Verify payment error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to verify signature',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }
 
@@ -110,7 +110,7 @@ export async function handleGetPayment(
       logger
     );
 
-    const data = await response.json() as RazorpayPayment | RazorpayErrorResponse;
+    const data = await readJsonWithTimeout<RazorpayPayment | RazorpayErrorResponse>(response, RAZORPAY_API_TIMEOUT_MS, logger);
 
     if (!response.ok) {
       const errData = data as RazorpayErrorResponse;
@@ -130,7 +130,7 @@ export async function handleGetPayment(
   } catch (error) {
     logger.error('Get payment error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch payment',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }
 
@@ -204,14 +204,67 @@ export async function handleVerifyWebhook(
         'Signature verification failed', 401, opts);
     }
 
+    // Event dedup: Check if we already processed this event
+    const eventPayload = parsedPayload as Record<string, any>;
+    const eventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id;
+    if (eventId && env.RATE_LIMIT_KV) {
+      const seen = await env.RATE_LIMIT_KV.get(`webhook:${eventId}`);
+      if (seen) {
+        logger.info('Duplicate webhook event, skipping', { eventId });
+        return jsonResponse(
+          { success: true, verified: true, status: 'duplicate', eventId },
+          200, request, { 'X-Request-ID': requestId }
+        );
+      }
+    }
+
+    // Timestamp window check: Reject events older than 5 minutes
+    const createdAt = eventPayload?.created_at;
+    if (typeof createdAt === 'number') {
+      const eventTime = new Date(createdAt * 1000);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (eventTime < fiveMinutesAgo) {
+        logger.warn('Replaying old webhook event rejected', {
+          eventId,
+          createdAt: eventTime.toISOString(),
+          now: new Date().toISOString()
+        });
+        return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Webhook event too old',
+          'Webhook event timestamp is more than 5 minutes in the past', 400, { requestId, request });
+      }
+    }
+
+    // Mark event as seen (7 day TTL)
+    if (eventId && env.RATE_LIMIT_KV) {
+      await env.RATE_LIMIT_KV.put(`webhook:${eventId}`, '1', { expirationTtl: 86400 * 7 });
+    }
+
+    // Forward verified webhook to the generic queue
+    if (env.WEBHOOK_QUEUE) {
+      try {
+        const eventPayload = parsedPayload as Record<string, any>;
+        const extractedEventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id || `webhook_${Date.now()}`;
+        const eventType = eventPayload?.event || eventPayload?.event_type || 'unknown';
+        
+        await env.WEBHOOK_QUEUE.send({
+          event_id: extractedEventId,
+          event_type: eventType,
+          payload: parsedPayload,
+        });
+        logger.info('Webhook forwarded to queue', { eventId: extractedEventId });
+      } catch (err) {
+        logger.error('Failed to forward webhook to queue', err instanceof Error ? err : undefined);
+      }
+    }
+
     return jsonResponse(
-      { success: true, verified: true, message: 'Webhook signature verified', payload: parsedPayload },
+      { success: true, verified: true, message: 'Webhook signature verified and forwarded', payload: parsedPayload },
       200, request, { 'X-Request-ID': requestId }
     );
   } catch (error) {
     logger.error('Verify webhook error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to verify webhook',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }
 
@@ -246,7 +299,7 @@ export async function handleCancelSubscription(
       logger
     );
 
-    const data = await response.json() as RazorpaySubscription | RazorpayErrorResponse;
+    const data = await readJsonWithTimeout<RazorpaySubscription | RazorpayErrorResponse>(response, RAZORPAY_API_TIMEOUT_MS, logger);
 
     if (!response.ok) {
       const errData = data as RazorpayErrorResponse;
@@ -266,6 +319,6 @@ export async function handleCancelSubscription(
   } catch (error) {
     logger.error('Cancel subscription error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to cancel subscription',
-      error instanceof Error ? error.message : 'Unknown error', 500, opts);
+      error instanceof Error ? error.message : String(error), 500, opts);
   }
 }

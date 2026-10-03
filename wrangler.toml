@@ -27,3 +27,22 @@ head_sampling_rate = 0.01
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,http://localhost:8788,http://localhost:9003,https://*.rareminds.in,https://*.pages.dev,https://rareminds.in,https://www.rareminds.in,https://rareminds-website.pages.dev,http://127.0.0.1:8788,http://127.0.0.1:9003"
+
+# ============================================================================
+# DEVELOPMENT -> wrangler deploy --env dev
+# ============================================================================
+
+[env.dev]
+name = "razorpay-api-dev"
+
+[env.dev.vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,http://localhost:8788,http://localhost:9003,https://*.rareminds.in,https://*.pages.dev,https://rareminds.in,https://www.rareminds.in,https://rareminds-website.pages.dev,http://127.0.0.1:8788,http://127.0.0.1:9003"
+
+[[env.dev.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "00dd9c44924f413ca859ba9ad80b8aa7"
+
+[[env.dev.queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "payment-webhooks-queue-dev"

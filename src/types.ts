@@ -16,7 +16,7 @@ export interface Env {
   // Service bindings
   EMAIL_SERVICE?: Fetcher;
 
-  ENVIRONMENT: 'local' | 'development' | 'staging' | 'production';
+  ENVIRONMENT: 'local' | 'development' | 'qa' | 'staging' | 'production';
 
   // Comma-separated list of allowed CORS origins — set in wrangler.toml [vars]
   // Supports wildcard subdomains with *., e.g. "https://*.rareminds.in"

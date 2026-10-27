@@ -151,4 +151,5 @@ PaymentService.prototype.fetch = async function(request: Request): Promise<Respo
   return handleHttpRequest(request, this.env, this.ctx);
 };
 
+export { PaymentService };
 export default PaymentService;

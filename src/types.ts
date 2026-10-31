@@ -80,6 +80,8 @@ export interface RazorpayPayment {
   order_id: string;
   method: string;
   captured: boolean;
+  amount_refunded?: number;
+  refund_status?: string | null;
   email?: string;
   contact?: string;
   created_at: number;

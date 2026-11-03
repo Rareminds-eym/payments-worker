@@ -11,8 +11,6 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import type { Env, RazorpayOrder, RazorpayPayment, RazorpaySubscription, RazorpayErrorResponse } from './types';
 import {
   RAZORPAY_API_BASE_URL,
-  MIN_AMOUNT,
-  MAX_AMOUNT,
   MAX_RECEIPT_LENGTH,
   MAX_NOTES_SIZE,
   MAX_NOTE_KEY_LENGTH,
@@ -73,13 +71,8 @@ export class PaymentService extends WorkerEntrypoint<Env> {
       throw new Error('INVALID_INPUT: Amount must be a positive integer in paise');
     }
 
-    if (amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
-      throw new Error(`INVALID_INPUT: Amount must be between ${MIN_AMOUNT} and ${MAX_AMOUNT} paise`);
-    }
-
-    if (currency && currency !== 'INR') {
-      throw new Error('INVALID_INPUT: Only INR currency is supported');
-    }
+    if (!Number.isSafeInteger(amount)) throw new Error('INVALID_INPUT: Amount must be a safe integer');
+    if (currency && !/^[A-Z]{3}$/.test(currency)) throw new Error('INVALID_INPUT: Invalid ISO currency code');
 
     if (receipt !== undefined && receipt !== null) {
       if (typeof receipt !== 'string') {
@@ -224,6 +217,75 @@ export class PaymentService extends WorkerEntrypoint<Env> {
    * @throws Error with RAZORPAY_API_ERROR prefix if Razorpay returns error
    * @throws Error with INTERNAL_ERROR prefix on unexpected failures
    */
+  async getOrder(orderId: string): Promise<RazorpayOrder> {
+    if (!/^order_[A-Za-z0-9]+$/.test(orderId))
+      throw new Error('INVALID_INPUT: Invalid order ID');
+    const response = await fetchWithRetry(
+      `${RAZORPAY_API_BASE_URL}/orders/${orderId}`,
+      {
+        headers: {
+          Authorization: `Basic ${btoa(`${this.env.RAZORPAY_KEY_ID}:${this.env.RAZORPAY_KEY_SECRET}`)}`,
+        },
+      },
+      2,
+    );
+    const data = await readJsonWithTimeout<
+      RazorpayOrder | RazorpayErrorResponse
+    >(response);
+    if (!response.ok)
+      throw new Error('RAZORPAY_API_ERROR: Unable to retrieve order');
+    return { ...(data as RazorpayOrder), key_id: this.env.RAZORPAY_KEY_ID };
+  }
+
+  async getOrdersByReceipt(
+    receipt: string,
+  ): Promise<{ items: RazorpayOrder[] }> {
+    if (!RECEIPT_RE.test(receipt))
+      throw new Error('INVALID_INPUT: Invalid receipt');
+    const response = await fetchWithRetry(
+      `${RAZORPAY_API_BASE_URL}/orders?receipt=${encodeURIComponent(receipt)}`,
+      {
+        headers: {
+          Authorization: `Basic ${btoa(`${this.env.RAZORPAY_KEY_ID}:${this.env.RAZORPAY_KEY_SECRET}`)}`,
+        },
+      },
+      2,
+    );
+    const data = await readJsonWithTimeout<
+      { items: RazorpayOrder[] } | RazorpayErrorResponse
+    >(response);
+    if (!response.ok)
+      throw new Error('RAZORPAY_API_ERROR: Unable to retrieve checkout order');
+    return {
+      items: (data as { items: RazorpayOrder[] }).items.map((order) => ({
+        ...order,
+        key_id: this.env.RAZORPAY_KEY_ID,
+      })),
+    };
+  }
+
+  async getOrderPayments(
+    orderId: string,
+  ): Promise<{ items: RazorpayPayment[] }> {
+    if (!/^order_[A-Za-z0-9]+$/.test(orderId))
+      throw new Error('INVALID_INPUT: Invalid order ID');
+    const response = await fetchWithRetry(
+      `${RAZORPAY_API_BASE_URL}/orders/${orderId}/payments`,
+      {
+        headers: {
+          Authorization: `Basic ${btoa(`${this.env.RAZORPAY_KEY_ID}:${this.env.RAZORPAY_KEY_SECRET}`)}`,
+        },
+      },
+      2,
+    );
+    const data = await readJsonWithTimeout<
+      { items: RazorpayPayment[] } | RazorpayErrorResponse
+    >(response);
+    if (!response.ok)
+      throw new Error('RAZORPAY_API_ERROR: Unable to retrieve order payments');
+    return data as { items: RazorpayPayment[] };
+  }
+
   async getPayment(paymentId: string): Promise<RazorpayPayment> {
     const requestId = this.rid();
     const start = Date.now();

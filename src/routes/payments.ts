@@ -2,7 +2,7 @@
  * Payment verification and details endpoints
  */
 
-import type { Env, VerifyPaymentRequest, VerifyPaymentResponse, GetPaymentResponse, RazorpayPayment, RazorpaySubscription, RazorpayErrorResponse } from '../types';
+import type { Env, VerifyPaymentRequest, VerifyPaymentResponse, GetPaymentResponse, RazorpayPayment, RazorpaySubscription, RazorpayErrorResponse, VerifiedPaymentWebhook } from '../types';
 import { RAZORPAY_API_BASE_URL, RAZORPAY_API_TIMEOUT_MS, ERROR_CODES } from '../constants';
 import { jsonResponse, errorResponse, timingSafeEqual, requireJsonContentType } from '../utils/response';
 import { fetchWithRetry, readJsonWithTimeout } from '../utils/fetch';
@@ -204,67 +204,51 @@ export async function handleVerifyWebhook(
         'Signature verification failed', 401, opts);
     }
 
-    // Event dedup: Check if we already processed this event
-    const eventPayload = parsedPayload as Record<string, any>;
-    const eventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id;
-    if (eventId && env.RATE_LIMIT_KV) {
-      const seen = await env.RATE_LIMIT_KV.get(`webhook:${eventId}`);
-      if (seen) {
-        logger.info('Duplicate webhook event, skipping', { eventId });
-        return jsonResponse(
-          { success: true, verified: true, status: 'duplicate', eventId },
-          200, request, { 'X-Request-ID': requestId }
-        );
+    if (!parsedPayload || typeof parsedPayload !== 'object' || Array.isArray(parsedPayload)) {
+      return errorResponse(ERROR_CODES.INVALID_INPUT, 'Invalid webhook event', 'Expected an event object', 400, opts);
+    }
+    const eventPayload = parsedPayload as Record<string, unknown>;
+    const eventType = eventPayload.event;
+    const eventSeconds = eventPayload.created_at;
+    const receivedAt = Date.now();
+    if (typeof eventType !== 'string' || !eventType.length || !Number.isSafeInteger(eventSeconds)
+      || Number(eventSeconds) <= 0 || !Number.isSafeInteger(Number(eventSeconds) * 1000)
+      || Number(eventSeconds) * 1000 > receivedAt) {
+      return errorResponse(ERROR_CODES.INVALID_INPUT, 'Invalid webhook event', 'Exact event type and provider timestamp required', 400, opts);
+    }
+    let capture: VerifiedPaymentWebhook['capture'] = null;
+    if (eventType === 'payment.captured') {
+      const object = (value: unknown): Record<string, unknown> | undefined => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+      const entity = object(object(object(eventPayload.payload)?.payment)?.entity);
+      if (!entity || entity.entity !== 'payment' || entity.status !== 'captured' || entity.captured !== true
+        || typeof entity.id !== 'string' || !/^pay_[A-Za-z0-9]+$/.test(entity.id)
+        || typeof entity.order_id !== 'string' || !/^order_[A-Za-z0-9]+$/.test(entity.order_id)
+        || !Number.isSafeInteger(entity.amount) || Number(entity.amount) <= 0
+        || typeof entity.currency !== 'string' || !/^[A-Z]{3}$/.test(entity.currency)
+        || entity.amount_refunded !== 0 || !Number.isSafeInteger(entity.created_at)
+        || Number(entity.created_at) <= 0 || Number(entity.created_at) > Number(eventSeconds)) {
+        return errorResponse(ERROR_CODES.INVALID_INPUT, 'Invalid capture evidence', 'Complete captured payment and provider event timestamp required', 400, opts);
       }
+      capture = { paymentId: entity.id, orderId: entity.order_id, amountMinor: Number(entity.amount), currency: entity.currency,
+        capturedAt: Number(eventSeconds) * 1000, paymentCreatedAt: Number(entity.created_at) * 1000 };
     }
-
-    // Timestamp window check: Reject events older than 5 minutes
-    const createdAt = eventPayload?.created_at;
-    if (typeof createdAt === 'number') {
-      const eventTime = new Date(createdAt * 1000);
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      if (eventTime < fiveMinutesAgo) {
-        logger.warn('Replaying old webhook event rejected', {
-          eventId,
-          createdAt: eventTime.toISOString(),
-          now: new Date().toISOString()
-        });
-        return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Webhook event too old',
-          'Webhook event timestamp is more than 5 minutes in the past', 400, { requestId, request });
-      }
+    if (!env.WEBHOOK_QUEUE) {
+      return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Webhook queue unavailable', 'Durable admission is required', 503, opts);
     }
-
-    // Mark event as seen (7 day TTL)
-    if (eventId && env.RATE_LIMIT_KV) {
-      await env.RATE_LIMIT_KV.put(`webhook:${eventId}`, '1', { expirationTtl: 86400 * 7 });
-    }
-
-    // Forward verified webhook to the generic queue
-    if (env.WEBHOOK_QUEUE) {
-      try {
-        const eventPayload = parsedPayload as Record<string, any>;
-        const extractedEventId = eventPayload?.event_id || eventPayload?.payload?.payment?.entity?.id || `webhook_${Date.now()}`;
-        const eventType = eventPayload?.event || eventPayload?.event_type || 'unknown';
-        
-        await env.WEBHOOK_QUEUE.send({
-          event_id: extractedEventId,
-          event_type: eventType,
-          payload: parsedPayload,
-        });
-        logger.info('Webhook forwarded to queue', { eventId: extractedEventId });
-      } catch (err) {
-        logger.error('Failed to forward webhook to queue', err instanceof Error ? err : undefined);
-      }
-    }
-
-    return jsonResponse(
-      { success: true, verified: true, message: 'Webhook signature verified and forwarded', payload: parsedPayload },
-      200, request, { 'X-Request-ID': requestId }
-    );
+    const digest = await crypto.subtle.digest('SHA-256', encoder.encode(body));
+    const bodySha256 = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, '0')).join('');
+    // Delivery age does not change authenticated capture time. Exact signed-body
+    // replays enter the durable queue with the same identity. The consumer must
+    // deduplicate transactionally with its effects, never in eventually-consistent
+    // KV before queue admission. Distinct event bodies cannot collide by payment ID.
+    const envelope: VerifiedPaymentWebhook = { event_id: bodySha256, event_type: eventType, payload: eventPayload,
+      verification: { kind: 'razorpay_hmac_sha256', bodySha256, receivedAt }, capture };
+    await env.WEBHOOK_QUEUE.send(envelope);
+    return jsonResponse({ success: true, verified: true, status: 'queued', eventId: bodySha256 }, 200, request, { 'X-Request-ID': requestId });
   } catch (error) {
     logger.error('Verify webhook error', error instanceof Error ? error : undefined);
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to verify webhook',
-      error instanceof Error ? error.message : String(error), 500, opts);
+      'Webhook admission failed; delivery may be retried', 503, opts);
   }
 }
 

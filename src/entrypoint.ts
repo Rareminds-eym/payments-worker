@@ -39,17 +39,98 @@ export interface VerifyWebhookResult {
   payload?: unknown;
 }
 
+export interface CreateRefundParams {
+  amount: number;
+  /** Also sent as the provider-supported X-Refund-Idempotency key. */
+  receipt: string;
+  notes: Record<string, string>;
+}
+
+export interface RazorpayRefund {
+  id: string;
+  entity: 'refund';
+  payment_id: string;
+  amount: number;
+  currency: string;
+  receipt: string | null;
+  status: 'pending' | 'processed' | 'failed';
+  notes: Record<string, string>;
+}
+
 // ─── Validation Regexes ─────────────────────────────────────────────────────────
 
 const RECEIPT_RE = /^[a-zA-Z0-9_-]{1,40}$/;
 const RAZORPAY_PAYMENT_ID_RE = /^pay_[A-Za-z0-9]{14,}$/;
 const RAZORPAY_SUBSCRIPTION_ID_RE = /^sub_[A-Za-z0-9]{14,}$/;
+const RAZORPAY_REFUND_ID_RE = /^rfnd_[A-Za-z0-9]+$/;
+// Razorpay's documented refund idempotency protocol requires at least ten characters.
+const MIN_REFUND_IDEMPOTENCY_LENGTH = 10;
+
+function refundNotes(value: unknown): value is Record<string, string> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype
+    && Object.keys(value).length <= MAX_NOTES_SIZE
+    && Object.entries(value).every(([key,item]) => key.length <= MAX_NOTE_KEY_LENGTH
+      && typeof item === 'string' && item.length <= MAX_NOTE_VALUE_LENGTH);
+}
+
+function parseRefund(value: unknown, paymentId: string, refundId?: string): RazorpayRefund {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('RAZORPAY_API_ERROR: Invalid refund evidence');
+  const result = value as Record<string, unknown>;
+  if (typeof result.id !== 'string' || !RAZORPAY_REFUND_ID_RE.test(result.id)
+    || (refundId !== undefined && result.id !== refundId) || result.entity !== 'refund' || result.payment_id !== paymentId
+    || typeof result.amount !== 'number' || !Number.isSafeInteger(result.amount) || result.amount <= 0
+    || typeof result.currency !== 'string' || !/^[A-Z]{3}$/.test(result.currency)
+    || (result.receipt !== null && typeof result.receipt !== 'string')
+    || (result.status !== 'pending' && result.status !== 'processed' && result.status !== 'failed') || !refundNotes(result.notes)) {
+    throw new Error('RAZORPAY_API_ERROR: Refund identity or evidence differs');
+  }
+  return { id: result.id, entity: 'refund', payment_id: paymentId, amount: result.amount, currency: result.currency,
+    receipt: result.receipt, status: result.status, notes: result.notes };
+}
 
 // ─── PaymentService Class ───────────────────────────────────────────────────────
 
 export class PaymentService extends WorkerEntrypoint<Env> {
   private rid(): string {
     return crypto.randomUUID();
+  }
+
+  /** A refund is a single external mutation. The owner records pending intent before this call.
+   * https://github.com/razorpay/markdown-docs/blob/master/api/refunds/normal-refunds-idempotent.md
+   * The supported header binds retries at Razorpay; this adapter itself never retries a mutation.
+   */
+  async createRefund(paymentId: string, input: CreateRefundParams): Promise<RazorpayRefund> {
+    if (typeof paymentId !== 'string' || !RAZORPAY_PAYMENT_ID_RE.test(paymentId) || !input
+      || typeof input !== 'object' || Object.keys(input).some(key => !['amount','receipt','notes'].includes(key))
+      || !Number.isSafeInteger(input.amount) || input.amount <= 0 || typeof input.receipt !== 'string'
+      || input.receipt.length < MIN_REFUND_IDEMPOTENCY_LENGTH || !RECEIPT_RE.test(input.receipt) || !refundNotes(input.notes)) {
+      throw new Error('INVALID_INPUT: Invalid refund amount, receipt or notes');
+    }
+    const response = await fetchWithRetry(`${RAZORPAY_API_BASE_URL}/payments/${paymentId}/refund`, {
+      method: 'POST', headers: { Authorization: `Basic ${btoa(`${this.env.RAZORPAY_KEY_ID}:${this.env.RAZORPAY_KEY_SECRET}`)}`,
+        'Content-Type': 'application/json', 'X-Refund-Idempotency': input.receipt },
+      body: JSON.stringify({ amount: input.amount, receipt: input.receipt, notes: input.notes }),
+    }, 0);
+    // Provider error descriptions may include sensitive payloads; preserve an explicit safe failure.
+    if (!response.ok) throw new Error('RAZORPAY_API_ERROR: Refund creation is unconfirmed');
+    const result = parseRefund(await readJsonWithTimeout<unknown>(response), paymentId);
+    if (result.amount !== input.amount || result.receipt !== input.receipt
+      || JSON.stringify(Object.entries(result.notes).sort()) !== JSON.stringify(Object.entries(input.notes).sort())) {
+      throw new Error('RAZORPAY_API_ERROR: Refund response differs from requested operation');
+    }
+    return result;
+  }
+
+  /** Readback only. Pending/failed provider states are retained and never represented as paid refunds. */
+  async getRefund(paymentId: string, refundId: string): Promise<RazorpayRefund> {
+    if (typeof paymentId !== 'string' || !RAZORPAY_PAYMENT_ID_RE.test(paymentId)
+      || typeof refundId !== 'string' || !RAZORPAY_REFUND_ID_RE.test(refundId)) throw new Error('INVALID_INPUT: Invalid refund references');
+    const response = await fetchWithRetry(`${RAZORPAY_API_BASE_URL}/payments/${paymentId}/refunds/${refundId}`, {
+      headers: { Authorization: `Basic ${btoa(`${this.env.RAZORPAY_KEY_ID}:${this.env.RAZORPAY_KEY_SECRET}`)}` },
+    }, 2);
+    if (!response.ok) throw new Error('RAZORPAY_API_ERROR: Unable to retrieve refund');
+    return parseRefund(await readJsonWithTimeout<unknown>(response), paymentId, refundId);
   }
 
   /**
@@ -126,7 +207,7 @@ export class PaymentService extends WorkerEntrypoint<Env> {
             notes: notes || {},
           }),
         },
-        2 // max retries
+        0 // Order creation is a mutation; an uncertain response requires owner reconciliation.
       );
 
       const data = await readJsonWithTimeout<RazorpayOrder | RazorpayErrorResponse>(response);

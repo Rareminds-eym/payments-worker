@@ -27,7 +27,21 @@ export interface Env {
   RATE_LIMIT_KV?: KVNamespace;
 
   // Queue for publishing webhook events
-  WEBHOOK_QUEUE?: Queue<any>;
+  WEBHOOK_QUEUE?: Queue<VerifiedPaymentWebhook>;
+}
+
+/** Produced only after raw-body HMAC verification; queue delivery is at least once.
+ * Consumers deduplicate the authenticated body digest transactionally with effects.
+ */
+export interface VerifiedPaymentWebhook {
+  event_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  verification: { kind: 'razorpay_hmac_sha256'; bodySha256: string; receivedAt: number };
+  capture: {
+    paymentId: string; orderId: string; amountMinor: number; currency: string;
+    capturedAt: number; paymentCreatedAt: number;
+  } | null;
 }
 
 // Razorpay API Types
